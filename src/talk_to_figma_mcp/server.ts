@@ -2648,7 +2648,41 @@ type FigmaCommand =
   | "set_default_connector"
   | "create_connections"
   | "set_focus"
-  | "set_selections";
+  | "set_selections"
+  // Phase 1: Component Creation & Management
+  | "create_component"
+  | "create_component_from_node"
+  | "combine_as_variants"
+  | "add_component_property"
+  | "edit_component_property"
+  | "delete_component_property"
+  | "create_instance_from_local"
+  // Phase 2: Variables / Design Tokens
+  | "create_variable_collection"
+  | "create_variable"
+  | "set_variable_value"
+  | "get_local_variables"
+  | "get_local_variable_collections"
+  | "set_variable_binding"
+  // Phase 3: Styles
+  | "create_paint_style"
+  | "create_text_style"
+  | "create_effect_style"
+  | "apply_style_to_node"
+  // Phase 4: Additional Shapes
+  | "create_ellipse"
+  | "create_line"
+  | "create_polygon"
+  | "create_star"
+  | "create_vector"
+  | "create_boolean_operation"
+  // Phase 5: Enhanced Properties
+  | "set_opacity"
+  | "set_blend_mode"
+  | "set_effects"
+  | "set_constraints"
+  | "set_export_settings"
+  | "set_node_properties";
 
 type CommandParams = {
   get_document_info: Record<string, never>;
@@ -2798,6 +2832,190 @@ type CommandParams = {
     nodeIds: string[];
   };
 
+  // Phase 1: Component Creation & Management
+  create_component: {
+    name: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    parentId?: string;
+  };
+  create_component_from_node: {
+    nodeId: string;
+  };
+  combine_as_variants: {
+    componentIds: string[];
+    name?: string;
+  };
+  add_component_property: {
+    componentId: string;
+    propertyName: string;
+    type: "BOOLEAN" | "TEXT" | "INSTANCE_SWAP" | "VARIANT";
+    defaultValue: string | boolean;
+    preferredValues?: Array<{ type: "COMPONENT" | "COMPONENT_SET"; key: string }>;
+  };
+  edit_component_property: {
+    componentId: string;
+    propertyName: string;
+    newName?: string;
+    defaultValue?: string | boolean;
+    preferredValues?: Array<{ type: "COMPONENT" | "COMPONENT_SET"; key: string }>;
+  };
+  delete_component_property: {
+    componentId: string;
+    propertyName: string;
+  };
+  create_instance_from_local: {
+    componentId: string;
+    x?: number;
+    y?: number;
+    parentId?: string;
+  };
+
+  // Phase 2: Variables / Design Tokens
+  create_variable_collection: {
+    name: string;
+  };
+  create_variable: {
+    collectionId: string;
+    name: string;
+    resolvedType: "COLOR" | "FLOAT" | "STRING" | "BOOLEAN";
+  };
+  set_variable_value: {
+    variableId: string;
+    modeId: string;
+    value: number | string | boolean | { r: number; g: number; b: number; a?: number };
+  };
+  get_local_variables: {
+    type?: "COLOR" | "FLOAT" | "STRING" | "BOOLEAN";
+  };
+  get_local_variable_collections: Record<string, never>;
+  set_variable_binding: {
+    nodeId: string;
+    field: string;
+    variableId: string;
+  };
+
+  // Phase 3: Styles
+  create_paint_style: {
+    name: string;
+    color: { r: number; g: number; b: number; a?: number };
+  };
+  create_text_style: {
+    name: string;
+    fontFamily: string;
+    fontStyle?: string;
+    fontSize: number;
+    lineHeight?: number | { value: number; unit: "PIXELS" | "PERCENT" | "AUTO" };
+    letterSpacing?: number | { value: number; unit: "PIXELS" | "PERCENT" };
+    textCase?: "ORIGINAL" | "UPPER" | "LOWER" | "TITLE";
+    textDecoration?: "NONE" | "UNDERLINE" | "STRIKETHROUGH";
+  };
+  create_effect_style: {
+    name: string;
+    effects: Array<{
+      type: "DROP_SHADOW" | "INNER_SHADOW" | "LAYER_BLUR" | "BACKGROUND_BLUR";
+      color?: { r: number; g: number; b: number; a?: number };
+      offset?: { x: number; y: number };
+      radius: number;
+      spread?: number;
+      visible?: boolean;
+    }>;
+  };
+  apply_style_to_node: {
+    nodeId: string;
+    styleId: string;
+    styleType: "fill" | "stroke" | "text" | "effect";
+  };
+
+  // Phase 4: Additional Shapes
+  create_ellipse: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    name?: string;
+    parentId?: string;
+  };
+  create_line: {
+    x: number;
+    y: number;
+    length: number;
+    rotation?: number;
+    name?: string;
+    parentId?: string;
+  };
+  create_polygon: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    pointCount?: number;
+    name?: string;
+    parentId?: string;
+  };
+  create_star: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    pointCount?: number;
+    innerRadius?: number;
+    name?: string;
+    parentId?: string;
+  };
+  create_vector: {
+    x: number;
+    y: number;
+    vectorPaths: Array<{ windingRule: "NONZERO" | "EVENODD"; data: string }>;
+    name?: string;
+    parentId?: string;
+  };
+  create_boolean_operation: {
+    nodeIds: string[];
+    operation: "UNION" | "INTERSECT" | "SUBTRACT" | "EXCLUDE";
+    name?: string;
+  };
+
+  // Phase 5: Enhanced Properties
+  set_opacity: {
+    nodeId: string;
+    opacity: number;
+  };
+  set_blend_mode: {
+    nodeId: string;
+    blendMode: string;
+  };
+  set_effects: {
+    nodeId: string;
+    effects: Array<{
+      type: "DROP_SHADOW" | "INNER_SHADOW" | "LAYER_BLUR" | "BACKGROUND_BLUR";
+      color?: { r: number; g: number; b: number; a?: number };
+      offset?: { x: number; y: number };
+      radius: number;
+      spread?: number;
+      visible?: boolean;
+    }>;
+  };
+  set_constraints: {
+    nodeId: string;
+    horizontal: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE";
+    vertical: "MIN" | "CENTER" | "MAX" | "STRETCH" | "SCALE";
+  };
+  set_export_settings: {
+    nodeId: string;
+    settings: Array<{
+      format: "PNG" | "JPG" | "SVG" | "PDF";
+      suffix?: string;
+      contentsOnly?: boolean;
+      constraint?: { type: "SCALE" | "WIDTH" | "HEIGHT"; value: number };
+    }>;
+  };
+  set_node_properties: {
+    nodeId: string;
+    properties: Record<string, unknown>;
+  };
 };
 
 
@@ -3028,6 +3246,631 @@ function sendCommandToFigma(
     ws.send(JSON.stringify(request));
   });
 }
+
+// ==========================================
+// Phase 1: Component Creation & Management
+// ==========================================
+
+server.tool(
+  "create_component",
+  "Create a new empty component in Figma",
+  {
+    name: z.string().describe("Name for the component"),
+    x: z.number().optional().describe("X position (default 0)"),
+    y: z.number().optional().describe("Y position (default 0)"),
+    width: z.number().optional().describe("Width (default 100)"),
+    height: z.number().optional().describe("Height (default 100)"),
+    parentId: z.string().optional().describe("Parent node ID to append to"),
+  },
+  async ({ name, x, y, width, height, parentId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_component", { name, x, y, width, height, parentId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating component: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_component_from_node",
+  "Convert an existing node into a component",
+  {
+    nodeId: z.string().describe("The ID of the node to convert to a component"),
+  },
+  async ({ nodeId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_component_from_node", { nodeId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating component from node: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "combine_as_variants",
+  "Combine multiple components into a variant set",
+  {
+    componentIds: z.array(z.string()).describe("Array of component node IDs to combine as variants"),
+    name: z.string().optional().describe("Name for the component set"),
+  },
+  async ({ componentIds, name }: any) => {
+    try {
+      const result = await sendCommandToFigma("combine_as_variants", { componentIds, name });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error combining variants: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "add_component_property",
+  "Add a property to a component (BOOLEAN, TEXT, INSTANCE_SWAP, or VARIANT)",
+  {
+    componentId: z.string().describe("The component node ID"),
+    propertyName: z.string().describe("Name of the property"),
+    type: z.enum(["BOOLEAN", "TEXT", "INSTANCE_SWAP", "VARIANT"]).describe("Type of the property"),
+    defaultValue: z.union([z.string(), z.boolean()]).describe("Default value for the property"),
+    preferredValues: z.array(z.object({
+      type: z.enum(["COMPONENT", "COMPONENT_SET"]),
+      key: z.string(),
+    })).optional().describe("Preferred values for INSTANCE_SWAP properties"),
+  },
+  async ({ componentId, propertyName, type, defaultValue, preferredValues }: any) => {
+    try {
+      const result = await sendCommandToFigma("add_component_property", { componentId, propertyName, type, defaultValue, preferredValues });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error adding component property: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "edit_component_property",
+  "Modify an existing component property",
+  {
+    componentId: z.string().describe("The component node ID"),
+    propertyName: z.string().describe("Current name of the property"),
+    newName: z.string().optional().describe("New name for the property"),
+    defaultValue: z.union([z.string(), z.boolean()]).optional().describe("New default value"),
+    preferredValues: z.array(z.object({
+      type: z.enum(["COMPONENT", "COMPONENT_SET"]),
+      key: z.string(),
+    })).optional().describe("New preferred values for INSTANCE_SWAP properties"),
+  },
+  async ({ componentId, propertyName, newName, defaultValue, preferredValues }: any) => {
+    try {
+      const result = await sendCommandToFigma("edit_component_property", { componentId, propertyName, newName, defaultValue, preferredValues });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error editing component property: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "delete_component_property",
+  "Remove a property from a component",
+  {
+    componentId: z.string().describe("The component node ID"),
+    propertyName: z.string().describe("Name of the property to delete"),
+  },
+  async ({ componentId, propertyName }: any) => {
+    try {
+      const result = await sendCommandToFigma("delete_component_property", { componentId, propertyName });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error deleting component property: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_instance_from_local",
+  "Create an instance of a local component by its node ID",
+  {
+    componentId: z.string().describe("The node ID of the local component to instantiate"),
+    x: z.number().optional().describe("X position for the instance"),
+    y: z.number().optional().describe("Y position for the instance"),
+    parentId: z.string().optional().describe("Parent node ID to append to"),
+  },
+  async ({ componentId, x, y, parentId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_instance_from_local", { componentId, x, y, parentId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating instance: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+// ==========================================
+// Phase 2: Variables / Design Tokens
+// ==========================================
+
+server.tool(
+  "create_variable_collection",
+  "Create a new variable collection for design tokens",
+  {
+    name: z.string().describe("Name for the variable collection"),
+  },
+  async ({ name }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_variable_collection", { name });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating variable collection: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_variable",
+  "Create a new variable (design token) in a collection",
+  {
+    collectionId: z.string().describe("The variable collection ID"),
+    name: z.string().describe("Name for the variable"),
+    resolvedType: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).describe("The variable type"),
+  },
+  async ({ collectionId, name, resolvedType }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_variable", { collectionId, name, resolvedType });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating variable: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "set_variable_value",
+  "Set a variable's value for a specific mode",
+  {
+    variableId: z.string().describe("The variable ID"),
+    modeId: z.string().describe("The mode ID to set the value for"),
+    value: z.union([
+      z.number(),
+      z.string(),
+      z.boolean(),
+      z.object({
+        r: z.number().describe("Red (0-1)"),
+        g: z.number().describe("Green (0-1)"),
+        b: z.number().describe("Blue (0-1)"),
+        a: z.number().optional().describe("Alpha (0-1, default 1)"),
+      }),
+    ]).describe("The value to set"),
+  },
+  async ({ variableId, modeId, value }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_variable_value", { variableId, modeId, value });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error setting variable value: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "get_local_variables",
+  "List local variables, optionally filtered by type",
+  {
+    type: z.enum(["COLOR", "FLOAT", "STRING", "BOOLEAN"]).optional().describe("Filter by variable type"),
+  },
+  async ({ type }: any) => {
+    try {
+      const result = await sendCommandToFigma("get_local_variables", { type });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error getting variables: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "get_local_variable_collections",
+  "List all local variable collections",
+  {},
+  async () => {
+    try {
+      const result = await sendCommandToFigma("get_local_variable_collections");
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error getting variable collections: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "set_variable_binding",
+  "Bind a variable to a node property",
+  {
+    nodeId: z.string().describe("The node ID to bind the variable to"),
+    field: z.string().describe("The property field to bind (e.g., 'fills/0/color', 'opacity', 'itemSpacing')"),
+    variableId: z.string().describe("The variable ID to bind"),
+  },
+  async ({ nodeId, field, variableId }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_variable_binding", { nodeId, field, variableId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error binding variable: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+// ==========================================
+// Phase 3: Styles
+// ==========================================
+
+server.tool(
+  "create_paint_style",
+  "Create a color/paint style",
+  {
+    name: z.string().describe("Name for the paint style"),
+    color: z.object({
+      r: z.number().describe("Red (0-1)"),
+      g: z.number().describe("Green (0-1)"),
+      b: z.number().describe("Blue (0-1)"),
+      a: z.number().optional().describe("Alpha (0-1, default 1)"),
+    }).describe("The color for the style"),
+  },
+  async ({ name, color }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_paint_style", { name, color });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating paint style: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_text_style",
+  "Create a text style with font properties",
+  {
+    name: z.string().describe("Name for the text style"),
+    fontFamily: z.string().describe("Font family name"),
+    fontStyle: z.string().optional().describe("Font style (e.g., 'Regular', 'Bold', 'Italic')"),
+    fontSize: z.number().describe("Font size in pixels"),
+    lineHeight: z.union([
+      z.number(),
+      z.object({
+        value: z.number(),
+        unit: z.enum(["PIXELS", "PERCENT", "AUTO"]),
+      }),
+    ]).optional().describe("Line height — number for pixels or object with unit"),
+    letterSpacing: z.union([
+      z.number(),
+      z.object({
+        value: z.number(),
+        unit: z.enum(["PIXELS", "PERCENT"]),
+      }),
+    ]).optional().describe("Letter spacing — number for pixels or object with unit"),
+    textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional().describe("Text case transform"),
+    textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional().describe("Text decoration"),
+  },
+  async ({ name, fontFamily, fontStyle, fontSize, lineHeight, letterSpacing, textCase, textDecoration }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_text_style", { name, fontFamily, fontStyle, fontSize, lineHeight, letterSpacing, textCase, textDecoration });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating text style: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_effect_style",
+  "Create an effect style (shadows, blurs)",
+  {
+    name: z.string().describe("Name for the effect style"),
+    effects: z.array(z.object({
+      type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]).describe("Effect type"),
+      color: z.object({
+        r: z.number(), g: z.number(), b: z.number(), a: z.number().optional(),
+      }).optional().describe("Effect color (for shadows)"),
+      offset: z.object({
+        x: z.number(), y: z.number(),
+      }).optional().describe("Shadow offset"),
+      radius: z.number().describe("Blur radius"),
+      spread: z.number().optional().describe("Shadow spread"),
+      visible: z.boolean().optional().describe("Whether effect is visible (default true)"),
+    })).describe("Array of effects"),
+  },
+  async ({ name, effects }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_effect_style", { name, effects });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating effect style: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "apply_style_to_node",
+  "Apply a style to a node (fill, stroke, text, or effect style)",
+  {
+    nodeId: z.string().describe("The node ID to apply the style to"),
+    styleId: z.string().describe("The style ID to apply"),
+    styleType: z.enum(["fill", "stroke", "text", "effect"]).describe("Type of style to apply"),
+  },
+  async ({ nodeId, styleId, styleType }: any) => {
+    try {
+      const result = await sendCommandToFigma("apply_style_to_node", { nodeId, styleId, styleType });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error applying style: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+// ==========================================
+// Phase 4: Additional Shapes
+// ==========================================
+
+server.tool(
+  "create_ellipse",
+  "Create an ellipse/circle in Figma",
+  {
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    width: z.number().describe("Width"),
+    height: z.number().describe("Height"),
+    name: z.string().optional().describe("Name for the ellipse"),
+    parentId: z.string().optional().describe("Parent node ID to append to"),
+  },
+  async ({ x, y, width, height, name, parentId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_ellipse", { x, y, width, height, name, parentId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating ellipse: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_line",
+  "Create a line in Figma",
+  {
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    length: z.number().describe("Length of the line"),
+    rotation: z.number().optional().describe("Rotation in degrees (default 0)"),
+    name: z.string().optional().describe("Name for the line"),
+    parentId: z.string().optional().describe("Parent node ID to append to"),
+  },
+  async ({ x, y, length, rotation, name, parentId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_line", { x, y, length, rotation, name, parentId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating line: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_polygon",
+  "Create a polygon in Figma",
+  {
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    width: z.number().describe("Width"),
+    height: z.number().describe("Height"),
+    pointCount: z.number().optional().describe("Number of sides (default 3 for triangle)"),
+    name: z.string().optional().describe("Name for the polygon"),
+    parentId: z.string().optional().describe("Parent node ID to append to"),
+  },
+  async ({ x, y, width, height, pointCount, name, parentId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_polygon", { x, y, width, height, pointCount, name, parentId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating polygon: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_star",
+  "Create a star shape in Figma",
+  {
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    width: z.number().describe("Width"),
+    height: z.number().describe("Height"),
+    pointCount: z.number().optional().describe("Number of points (default 5)"),
+    innerRadius: z.number().optional().describe("Inner radius ratio 0-1 (default 0.382)"),
+    name: z.string().optional().describe("Name for the star"),
+    parentId: z.string().optional().describe("Parent node ID to append to"),
+  },
+  async ({ x, y, width, height, pointCount, innerRadius, name, parentId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_star", { x, y, width, height, pointCount, innerRadius, name, parentId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating star: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_vector",
+  "Create a vector path in Figma using SVG-like path data",
+  {
+    x: z.number().describe("X position"),
+    y: z.number().describe("Y position"),
+    vectorPaths: z.array(z.object({
+      windingRule: z.enum(["NONZERO", "EVENODD"]).describe("Winding rule for the path"),
+      data: z.string().describe("SVG path data string (M, L, C, Q, Z commands)"),
+    })).describe("Array of vector path objects"),
+    name: z.string().optional().describe("Name for the vector"),
+    parentId: z.string().optional().describe("Parent node ID to append to"),
+  },
+  async ({ x, y, vectorPaths, name, parentId }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_vector", { x, y, vectorPaths, name, parentId });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating vector: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "create_boolean_operation",
+  "Create a boolean operation (union, intersect, subtract, exclude) from multiple nodes",
+  {
+    nodeIds: z.array(z.string()).describe("Array of node IDs to combine"),
+    operation: z.enum(["UNION", "INTERSECT", "SUBTRACT", "EXCLUDE"]).describe("Boolean operation type"),
+    name: z.string().optional().describe("Name for the resulting node"),
+  },
+  async ({ nodeIds, operation, name }: any) => {
+    try {
+      const result = await sendCommandToFigma("create_boolean_operation", { nodeIds, operation, name });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error creating boolean operation: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+// ==========================================
+// Phase 5: Enhanced Properties
+// ==========================================
+
+server.tool(
+  "set_opacity",
+  "Set the opacity of a node",
+  {
+    nodeId: z.string().describe("The node ID"),
+    opacity: z.number().min(0).max(1).describe("Opacity value (0-1)"),
+  },
+  async ({ nodeId, opacity }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_opacity", { nodeId, opacity });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error setting opacity: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "set_blend_mode",
+  "Set the blend mode of a node",
+  {
+    nodeId: z.string().describe("The node ID"),
+    blendMode: z.enum([
+      "NORMAL", "DARKEN", "MULTIPLY", "COLOR_BURN", "LINEAR_BURN",
+      "LIGHTEN", "SCREEN", "COLOR_DODGE", "LINEAR_DODGE",
+      "OVERLAY", "SOFT_LIGHT", "HARD_LIGHT",
+      "DIFFERENCE", "EXCLUSION",
+      "HUE", "SATURATION", "COLOR", "LUMINOSITY",
+    ]).describe("Blend mode"),
+  },
+  async ({ nodeId, blendMode }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_blend_mode", { nodeId, blendMode });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error setting blend mode: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "set_effects",
+  "Set effects (shadows, blurs) on a node",
+  {
+    nodeId: z.string().describe("The node ID"),
+    effects: z.array(z.object({
+      type: z.enum(["DROP_SHADOW", "INNER_SHADOW", "LAYER_BLUR", "BACKGROUND_BLUR"]).describe("Effect type"),
+      color: z.object({
+        r: z.number(), g: z.number(), b: z.number(), a: z.number().optional(),
+      }).optional().describe("Effect color (for shadows)"),
+      offset: z.object({
+        x: z.number(), y: z.number(),
+      }).optional().describe("Shadow offset"),
+      radius: z.number().describe("Blur radius"),
+      spread: z.number().optional().describe("Shadow spread"),
+      visible: z.boolean().optional().describe("Whether effect is visible (default true)"),
+    })).describe("Array of effects to apply"),
+  },
+  async ({ nodeId, effects }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_effects", { nodeId, effects });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error setting effects: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "set_constraints",
+  "Set layout constraints on a node",
+  {
+    nodeId: z.string().describe("The node ID"),
+    horizontal: z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]).describe("Horizontal constraint"),
+    vertical: z.enum(["MIN", "CENTER", "MAX", "STRETCH", "SCALE"]).describe("Vertical constraint"),
+  },
+  async ({ nodeId, horizontal, vertical }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_constraints", { nodeId, horizontal, vertical });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error setting constraints: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "set_export_settings",
+  "Set export settings on a node",
+  {
+    nodeId: z.string().describe("The node ID"),
+    settings: z.array(z.object({
+      format: z.enum(["PNG", "JPG", "SVG", "PDF"]).describe("Export format"),
+      suffix: z.string().optional().describe("File suffix"),
+      contentsOnly: z.boolean().optional().describe("Export contents only (default true)"),
+      constraint: z.object({
+        type: z.enum(["SCALE", "WIDTH", "HEIGHT"]).describe("Constraint type"),
+        value: z.number().describe("Constraint value"),
+      }).optional().describe("Export constraint"),
+    })).describe("Array of export settings"),
+  },
+  async ({ nodeId, settings }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_export_settings", { nodeId, settings });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error setting export settings: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
+
+server.tool(
+  "set_node_properties",
+  "Batch-set multiple properties on a node at once",
+  {
+    nodeId: z.string().describe("The node ID"),
+    properties: z.record(z.unknown()).describe("Object of property key-value pairs to set (e.g., { opacity: 0.5, visible: false, locked: true })"),
+  },
+  async ({ nodeId, properties }: any) => {
+    try {
+      const result = await sendCommandToFigma("set_node_properties", { nodeId, properties });
+      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+    } catch (error) {
+      return { content: [{ type: "text", text: `Error setting node properties: ${error instanceof Error ? error.message : String(error)}` }] };
+    }
+  }
+);
 
 // Update the join_channel tool
 server.tool(

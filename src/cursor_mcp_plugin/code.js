@@ -233,6 +233,69 @@ async function handleCommand(command, params) {
       return await setFocus(params);
     case "set_selections":
       return await setSelections(params);
+    // Phase 1: Component Creation & Management
+    case "create_component":
+      return await createComponent(params);
+    case "create_component_from_node":
+      return await createComponentFromNode(params);
+    case "combine_as_variants":
+      return await combineAsVariants(params);
+    case "add_component_property":
+      return await addComponentProperty(params);
+    case "edit_component_property":
+      return await editComponentProperty(params);
+    case "delete_component_property":
+      return await deleteComponentProperty(params);
+    case "create_instance_from_local":
+      return await createInstanceFromLocal(params);
+    // Phase 2: Variables / Design Tokens
+    case "create_variable_collection":
+      return await createVariableCollection(params);
+    case "create_variable":
+      return await createVariable(params);
+    case "set_variable_value":
+      return await setVariableValue(params);
+    case "get_local_variables":
+      return await getLocalVariables(params);
+    case "get_local_variable_collections":
+      return await getLocalVariableCollections();
+    case "set_variable_binding":
+      return await setVariableBinding(params);
+    // Phase 3: Styles
+    case "create_paint_style":
+      return await createPaintStyle(params);
+    case "create_text_style":
+      return await createTextStyleHandler(params);
+    case "create_effect_style":
+      return await createEffectStyle(params);
+    case "apply_style_to_node":
+      return await applyStyleToNode(params);
+    // Phase 4: Additional Shapes
+    case "create_ellipse":
+      return await createEllipse(params);
+    case "create_line":
+      return await createLine(params);
+    case "create_polygon":
+      return await createPolygon(params);
+    case "create_star":
+      return await createStar(params);
+    case "create_vector":
+      return await createVector(params);
+    case "create_boolean_operation":
+      return await createBooleanOperation(params);
+    // Phase 5: Enhanced Properties
+    case "set_opacity":
+      return await setOpacity(params);
+    case "set_blend_mode":
+      return await setBlendMode(params);
+    case "set_effects":
+      return await setEffects(params);
+    case "set_constraints":
+      return await setConstraints(params);
+    case "set_export_settings":
+      return await setExportSettings(params);
+    case "set_node_properties":
+      return await setNodeProperties(params);
     default:
       throw new Error(`Unknown command: ${command}`);
   }
@@ -4024,5 +4087,762 @@ async function setSelections(params) {
     selectedNodes: selectedNodes,
     notFoundIds: notFoundIds,
     message: `Selected ${nodes.length} nodes${notFoundIds.length > 0 ? ` (${notFoundIds.length} not found)` : ''}`
+  };
+}
+
+// ==========================================
+// Phase 1: Component Creation & Management
+// ==========================================
+
+async function createComponent(params) {
+  const { name, x = 0, y = 0, width = 100, height = 100, parentId } = params || {};
+  if (!name) throw new Error("Missing name parameter");
+
+  const component = figma.createComponent();
+  component.name = name;
+  component.x = x;
+  component.y = y;
+  component.resize(width, height);
+
+  if (parentId) {
+    const parent = await figma.getNodeByIdAsync(parentId);
+    if (parent && "appendChild" in parent) {
+      parent.appendChild(component);
+    }
+  }
+
+  return {
+    id: component.id,
+    key: component.key,
+    name: component.name,
+    width: component.width,
+    height: component.height,
+  };
+}
+
+async function createComponentFromNode(params) {
+  if (!params || !params.nodeId) throw new Error("Missing nodeId parameter");
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  if (!("parent" in node) || !node.parent) throw new Error("Node has no parent");
+
+  const parent = node.parent;
+  const index = parent.children.indexOf(node);
+  const component = figma.createComponent();
+  component.name = node.name;
+
+  if ("width" in node && "height" in node) {
+    component.resize(node.width, node.height);
+  }
+  if ("x" in node && "y" in node) {
+    component.x = node.x;
+    component.y = node.y;
+  }
+
+  // Move children from clone into the component
+  const clone = node.clone();
+  clone.x = 0;
+  clone.y = 0;
+  component.appendChild(clone);
+
+  // Insert component at original position and remove original
+  parent.insertChild(index, component);
+  node.remove();
+
+  return {
+    id: component.id,
+    key: component.key,
+    name: component.name,
+  };
+}
+
+async function combineAsVariants(params) {
+  if (!params || !params.componentIds || !Array.isArray(params.componentIds)) {
+    throw new Error("Missing or invalid componentIds parameter");
+  }
+  if (params.componentIds.length < 2) {
+    throw new Error("Need at least 2 components to combine as variants");
+  }
+
+  const components = [];
+  for (const id of params.componentIds) {
+    const node = await figma.getNodeByIdAsync(id);
+    if (!node) throw new Error(`Component not found: ${id}`);
+    if (node.type !== "COMPONENT") throw new Error(`Node ${id} is not a component (type: ${node.type})`);
+    components.push(node);
+  }
+
+  const componentSet = figma.combineAsVariants(components, figma.currentPage);
+  if (params.name) {
+    componentSet.name = params.name;
+  }
+
+  return {
+    id: componentSet.id,
+    key: componentSet.key,
+    name: componentSet.name,
+    variantCount: componentSet.children.length,
+  };
+}
+
+async function addComponentProperty(params) {
+  if (!params || !params.componentId || !params.propertyName || !params.type) {
+    throw new Error("Missing required parameters: componentId, propertyName, type");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.componentId);
+  if (!node) throw new Error(`Node not found: ${params.componentId}`);
+  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") {
+    throw new Error(`Node is not a component or component set (type: ${node.type})`);
+  }
+
+  const options = { type: params.type, defaultValue: params.defaultValue };
+  if (params.preferredValues) {
+    options.preferredValues = params.preferredValues;
+  }
+
+  const propertyName = node.addComponentProperty(params.propertyName, params.type, params.defaultValue);
+
+  return {
+    id: node.id,
+    name: node.name,
+    propertyName: propertyName,
+    componentPropertyDefinitions: node.componentPropertyDefinitions,
+  };
+}
+
+async function editComponentProperty(params) {
+  if (!params || !params.componentId || !params.propertyName) {
+    throw new Error("Missing required parameters: componentId, propertyName");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.componentId);
+  if (!node) throw new Error(`Node not found: ${params.componentId}`);
+  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") {
+    throw new Error(`Node is not a component or component set (type: ${node.type})`);
+  }
+
+  const newValue = {};
+  if (params.newName !== undefined) newValue.name = params.newName;
+  if (params.defaultValue !== undefined) newValue.defaultValue = params.defaultValue;
+  if (params.preferredValues !== undefined) newValue.preferredValues = params.preferredValues;
+
+  node.editComponentProperty(params.propertyName, newValue);
+
+  return {
+    id: node.id,
+    name: node.name,
+    componentPropertyDefinitions: node.componentPropertyDefinitions,
+  };
+}
+
+async function deleteComponentProperty(params) {
+  if (!params || !params.componentId || !params.propertyName) {
+    throw new Error("Missing required parameters: componentId, propertyName");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.componentId);
+  if (!node) throw new Error(`Node not found: ${params.componentId}`);
+  if (node.type !== "COMPONENT" && node.type !== "COMPONENT_SET") {
+    throw new Error(`Node is not a component or component set (type: ${node.type})`);
+  }
+
+  node.deleteComponentProperty(params.propertyName);
+
+  return {
+    id: node.id,
+    name: node.name,
+    componentPropertyDefinitions: node.componentPropertyDefinitions,
+  };
+}
+
+async function createInstanceFromLocal(params) {
+  if (!params || !params.componentId) throw new Error("Missing componentId parameter");
+
+  const node = await figma.getNodeByIdAsync(params.componentId);
+  if (!node) throw new Error(`Component not found: ${params.componentId}`);
+  if (node.type !== "COMPONENT") throw new Error(`Node is not a component (type: ${node.type})`);
+
+  const instance = node.createInstance();
+  if (params.x !== undefined) instance.x = params.x;
+  if (params.y !== undefined) instance.y = params.y;
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId);
+    if (parent && "appendChild" in parent) {
+      parent.appendChild(instance);
+    }
+  }
+
+  return {
+    id: instance.id,
+    name: instance.name,
+    componentId: node.id,
+    width: instance.width,
+    height: instance.height,
+  };
+}
+
+// ==========================================
+// Phase 2: Variables / Design Tokens
+// ==========================================
+
+async function createVariableCollection(params) {
+  if (!params || !params.name) throw new Error("Missing name parameter");
+
+  const collection = figma.variables.createVariableCollection(params.name);
+
+  return {
+    id: collection.id,
+    name: collection.name,
+    modes: collection.modes,
+    defaultModeId: collection.defaultModeId,
+  };
+}
+
+async function createVariable(params) {
+  if (!params || !params.collectionId || !params.name || !params.resolvedType) {
+    throw new Error("Missing required parameters: collectionId, name, resolvedType");
+  }
+
+  const variable = figma.variables.createVariable(params.name, params.collectionId, params.resolvedType);
+
+  return {
+    id: variable.id,
+    name: variable.name,
+    key: variable.key,
+    resolvedType: variable.resolvedType,
+    variableCollectionId: variable.variableCollectionId,
+  };
+}
+
+async function setVariableValue(params) {
+  if (!params || !params.variableId || !params.modeId || params.value === undefined) {
+    throw new Error("Missing required parameters: variableId, modeId, value");
+  }
+
+  const variable = await figma.variables.getVariableByIdAsync(params.variableId);
+  if (!variable) throw new Error(`Variable not found: ${params.variableId}`);
+
+  let value = params.value;
+  // Convert color object to Figma RGBA if needed
+  if (typeof value === "object" && value !== null && "r" in value) {
+    value = { r: value.r, g: value.g, b: value.b, a: value.a !== undefined ? value.a : 1 };
+  }
+
+  variable.setValueForMode(params.modeId, value);
+
+  return {
+    id: variable.id,
+    name: variable.name,
+    modeId: params.modeId,
+    value: value,
+  };
+}
+
+async function getLocalVariables(params) {
+  let variables;
+  if (params && params.type) {
+    variables = await figma.variables.getLocalVariablesAsync(params.type);
+  } else {
+    variables = await figma.variables.getLocalVariablesAsync();
+  }
+
+  return {
+    count: variables.length,
+    variables: variables.map(v => ({
+      id: v.id,
+      name: v.name,
+      key: v.key,
+      resolvedType: v.resolvedType,
+      variableCollectionId: v.variableCollectionId,
+      valuesByMode: v.valuesByMode,
+    })),
+  };
+}
+
+async function getLocalVariableCollections() {
+  const collections = await figma.variables.getLocalVariableCollectionsAsync();
+
+  return {
+    count: collections.length,
+    collections: collections.map(c => ({
+      id: c.id,
+      name: c.name,
+      key: c.key,
+      modes: c.modes,
+      defaultModeId: c.defaultModeId,
+      variableIds: c.variableIds,
+    })),
+  };
+}
+
+async function setVariableBinding(params) {
+  if (!params || !params.nodeId || !params.field || !params.variableId) {
+    throw new Error("Missing required parameters: nodeId, field, variableId");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+
+  const variable = await figma.variables.getVariableByIdAsync(params.variableId);
+  if (!variable) throw new Error(`Variable not found: ${params.variableId}`);
+
+  // Handle nested fields like "fills/0/color" by using setBoundVariable
+  if ("setBoundVariable" in node) {
+    node.setBoundVariable(params.field, variable);
+  } else {
+    throw new Error("Node does not support variable binding");
+  }
+
+  return {
+    id: node.id,
+    name: node.name,
+    field: params.field,
+    variableId: variable.id,
+    variableName: variable.name,
+  };
+}
+
+// ==========================================
+// Phase 3: Styles
+// ==========================================
+
+async function createPaintStyle(params) {
+  if (!params || !params.name || !params.color) {
+    throw new Error("Missing required parameters: name, color");
+  }
+
+  const style = figma.createPaintStyle();
+  style.name = params.name;
+
+  const { r, g, b, a = 1 } = params.color;
+  style.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
+
+  return {
+    id: style.id,
+    key: style.key,
+    name: style.name,
+  };
+}
+
+async function createTextStyleHandler(params) {
+  if (!params || !params.name || !params.fontFamily || !params.fontSize) {
+    throw new Error("Missing required parameters: name, fontFamily, fontSize");
+  }
+
+  const style = figma.createTextStyle();
+  style.name = params.name;
+
+  const fontStyle = params.fontStyle || "Regular";
+  await figma.loadFontAsync({ family: params.fontFamily, style: fontStyle });
+
+  style.fontName = { family: params.fontFamily, style: fontStyle };
+  style.fontSize = params.fontSize;
+
+  if (params.lineHeight !== undefined) {
+    if (typeof params.lineHeight === "number") {
+      style.lineHeight = { value: params.lineHeight, unit: "PIXELS" };
+    } else if (params.lineHeight.unit === "AUTO") {
+      style.lineHeight = { unit: "AUTO" };
+    } else {
+      style.lineHeight = { value: params.lineHeight.value, unit: params.lineHeight.unit };
+    }
+  }
+
+  if (params.letterSpacing !== undefined) {
+    if (typeof params.letterSpacing === "number") {
+      style.letterSpacing = { value: params.letterSpacing, unit: "PIXELS" };
+    } else {
+      style.letterSpacing = { value: params.letterSpacing.value, unit: params.letterSpacing.unit };
+    }
+  }
+
+  if (params.textCase) style.textCase = params.textCase;
+  if (params.textDecoration) style.textDecoration = params.textDecoration;
+
+  return {
+    id: style.id,
+    key: style.key,
+    name: style.name,
+  };
+}
+
+async function createEffectStyle(params) {
+  if (!params || !params.name || !params.effects) {
+    throw new Error("Missing required parameters: name, effects");
+  }
+
+  const style = figma.createEffectStyle();
+  style.name = params.name;
+
+  style.effects = params.effects.map(e => {
+    const effect = {
+      type: e.type,
+      radius: e.radius,
+      visible: e.visible !== undefined ? e.visible : true,
+    };
+    if (e.color) {
+      effect.color = { r: e.color.r, g: e.color.g, b: e.color.b, a: e.color.a !== undefined ? e.color.a : 1 };
+    }
+    if (e.offset) {
+      effect.offset = { x: e.offset.x, y: e.offset.y };
+    }
+    if (e.spread !== undefined) {
+      effect.spread = e.spread;
+    }
+    return effect;
+  });
+
+  return {
+    id: style.id,
+    key: style.key,
+    name: style.name,
+  };
+}
+
+async function applyStyleToNode(params) {
+  if (!params || !params.nodeId || !params.styleId || !params.styleType) {
+    throw new Error("Missing required parameters: nodeId, styleId, styleType");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+
+  switch (params.styleType) {
+    case "fill":
+      if ("fillStyleId" in node) node.fillStyleId = params.styleId;
+      else throw new Error("Node does not support fill styles");
+      break;
+    case "stroke":
+      if ("strokeStyleId" in node) node.strokeStyleId = params.styleId;
+      else throw new Error("Node does not support stroke styles");
+      break;
+    case "text":
+      if ("textStyleId" in node) node.textStyleId = params.styleId;
+      else throw new Error("Node does not support text styles");
+      break;
+    case "effect":
+      if ("effectStyleId" in node) node.effectStyleId = params.styleId;
+      else throw new Error("Node does not support effect styles");
+      break;
+    default:
+      throw new Error(`Unknown style type: ${params.styleType}`);
+  }
+
+  return {
+    id: node.id,
+    name: node.name,
+    styleType: params.styleType,
+    styleId: params.styleId,
+  };
+}
+
+// ==========================================
+// Phase 4: Additional Shapes
+// ==========================================
+
+async function createEllipse(params) {
+  if (!params) throw new Error("Missing parameters");
+
+  const ellipse = figma.createEllipse();
+  ellipse.x = params.x || 0;
+  ellipse.y = params.y || 0;
+  ellipse.resize(params.width || 100, params.height || 100);
+  if (params.name) ellipse.name = params.name;
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId);
+    if (parent && "appendChild" in parent) parent.appendChild(ellipse);
+  }
+
+  return {
+    id: ellipse.id,
+    name: ellipse.name,
+    width: ellipse.width,
+    height: ellipse.height,
+  };
+}
+
+async function createLine(params) {
+  if (!params) throw new Error("Missing parameters");
+
+  const line = figma.createLine();
+  line.x = params.x || 0;
+  line.y = params.y || 0;
+  line.resize(params.length || 100, 0);
+  if (params.rotation) line.rotation = params.rotation;
+  if (params.name) line.name = params.name;
+
+  // Give it a visible stroke by default
+  line.strokes = [{ type: "SOLID", color: { r: 0, g: 0, b: 0 } }];
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId);
+    if (parent && "appendChild" in parent) parent.appendChild(line);
+  }
+
+  return {
+    id: line.id,
+    name: line.name,
+    length: params.length || 100,
+  };
+}
+
+async function createPolygon(params) {
+  if (!params) throw new Error("Missing parameters");
+
+  const polygon = figma.createPolygon();
+  polygon.x = params.x || 0;
+  polygon.y = params.y || 0;
+  polygon.resize(params.width || 100, params.height || 100);
+  if (params.pointCount) polygon.pointCount = params.pointCount;
+  if (params.name) polygon.name = params.name;
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId);
+    if (parent && "appendChild" in parent) parent.appendChild(polygon);
+  }
+
+  return {
+    id: polygon.id,
+    name: polygon.name,
+    pointCount: polygon.pointCount,
+    width: polygon.width,
+    height: polygon.height,
+  };
+}
+
+async function createStar(params) {
+  if (!params) throw new Error("Missing parameters");
+
+  const star = figma.createStar();
+  star.x = params.x || 0;
+  star.y = params.y || 0;
+  star.resize(params.width || 100, params.height || 100);
+  if (params.pointCount) star.pointCount = params.pointCount;
+  if (params.innerRadius !== undefined) star.innerRadius = params.innerRadius;
+  if (params.name) star.name = params.name;
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId);
+    if (parent && "appendChild" in parent) parent.appendChild(star);
+  }
+
+  return {
+    id: star.id,
+    name: star.name,
+    pointCount: star.pointCount,
+    innerRadius: star.innerRadius,
+    width: star.width,
+    height: star.height,
+  };
+}
+
+async function createVector(params) {
+  if (!params || !params.vectorPaths) throw new Error("Missing vectorPaths parameter");
+
+  const vector = figma.createVector();
+  vector.x = params.x || 0;
+  vector.y = params.y || 0;
+  vector.vectorPaths = params.vectorPaths;
+  if (params.name) vector.name = params.name;
+
+  if (params.parentId) {
+    const parent = await figma.getNodeByIdAsync(params.parentId);
+    if (parent && "appendChild" in parent) parent.appendChild(vector);
+  }
+
+  return {
+    id: vector.id,
+    name: vector.name,
+    width: vector.width,
+    height: vector.height,
+  };
+}
+
+async function createBooleanOperation(params) {
+  if (!params || !params.nodeIds || !Array.isArray(params.nodeIds) || !params.operation) {
+    throw new Error("Missing required parameters: nodeIds, operation");
+  }
+  if (params.nodeIds.length < 2) {
+    throw new Error("Need at least 2 nodes for a boolean operation");
+  }
+
+  const nodes = [];
+  for (const id of params.nodeIds) {
+    const node = await figma.getNodeByIdAsync(id);
+    if (!node) throw new Error(`Node not found: ${id}`);
+    nodes.push(node);
+  }
+
+  const boolOp = figma.createBooleanOperation();
+  boolOp.booleanOperation = params.operation;
+
+  // Clone nodes into the boolean operation
+  for (const node of nodes) {
+    const clone = node.clone();
+    boolOp.appendChild(clone);
+  }
+
+  if (params.name) boolOp.name = params.name;
+
+  return {
+    id: boolOp.id,
+    name: boolOp.name,
+    operation: boolOp.booleanOperation,
+    childCount: boolOp.children.length,
+  };
+}
+
+// ==========================================
+// Phase 5: Enhanced Properties
+// ==========================================
+
+async function setOpacity(params) {
+  if (!params || !params.nodeId || params.opacity === undefined) {
+    throw new Error("Missing required parameters: nodeId, opacity");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  if (!("opacity" in node)) throw new Error("Node does not support opacity");
+
+  node.opacity = params.opacity;
+
+  return {
+    id: node.id,
+    name: node.name,
+    opacity: node.opacity,
+  };
+}
+
+async function setBlendMode(params) {
+  if (!params || !params.nodeId || !params.blendMode) {
+    throw new Error("Missing required parameters: nodeId, blendMode");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  if (!("blendMode" in node)) throw new Error("Node does not support blend modes");
+
+  node.blendMode = params.blendMode;
+
+  return {
+    id: node.id,
+    name: node.name,
+    blendMode: node.blendMode,
+  };
+}
+
+async function setEffects(params) {
+  if (!params || !params.nodeId || !params.effects) {
+    throw new Error("Missing required parameters: nodeId, effects");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  if (!("effects" in node)) throw new Error("Node does not support effects");
+
+  node.effects = params.effects.map(e => {
+    const effect = {
+      type: e.type,
+      radius: e.radius,
+      visible: e.visible !== undefined ? e.visible : true,
+    };
+    if (e.color) {
+      effect.color = { r: e.color.r, g: e.color.g, b: e.color.b, a: e.color.a !== undefined ? e.color.a : 1 };
+    }
+    if (e.offset) {
+      effect.offset = { x: e.offset.x, y: e.offset.y };
+    }
+    if (e.spread !== undefined) {
+      effect.spread = e.spread;
+    }
+    return effect;
+  });
+
+  return {
+    id: node.id,
+    name: node.name,
+    effectCount: node.effects.length,
+  };
+}
+
+async function setConstraints(params) {
+  if (!params || !params.nodeId || !params.horizontal || !params.vertical) {
+    throw new Error("Missing required parameters: nodeId, horizontal, vertical");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  if (!("constraints" in node)) throw new Error("Node does not support constraints");
+
+  node.constraints = {
+    horizontal: params.horizontal,
+    vertical: params.vertical,
+  };
+
+  return {
+    id: node.id,
+    name: node.name,
+    constraints: node.constraints,
+  };
+}
+
+async function setExportSettings(params) {
+  if (!params || !params.nodeId || !params.settings) {
+    throw new Error("Missing required parameters: nodeId, settings");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+  if (!("exportSettings" in node)) throw new Error("Node does not support export settings");
+
+  node.exportSettings = params.settings.map(s => {
+    const setting = { format: s.format };
+    if (s.suffix) setting.suffix = s.suffix;
+    if (s.contentsOnly !== undefined) setting.contentsOnly = s.contentsOnly;
+    if (s.constraint) setting.constraint = s.constraint;
+    return setting;
+  });
+
+  return {
+    id: node.id,
+    name: node.name,
+    exportSettings: node.exportSettings,
+  };
+}
+
+async function setNodeProperties(params) {
+  if (!params || !params.nodeId || !params.properties) {
+    throw new Error("Missing required parameters: nodeId, properties");
+  }
+
+  const node = await figma.getNodeByIdAsync(params.nodeId);
+  if (!node) throw new Error(`Node not found: ${params.nodeId}`);
+
+  const applied = {};
+  const errors = {};
+
+  for (const [key, value] of Object.entries(params.properties)) {
+    try {
+      if (key in node) {
+        node[key] = value;
+        applied[key] = value;
+      } else {
+        errors[key] = `Property "${key}" does not exist on node type ${node.type}`;
+      }
+    } catch (e) {
+      errors[key] = e.message || String(e);
+    }
+  }
+
+  return {
+    id: node.id,
+    name: node.name,
+    applied: applied,
+    errors: Object.keys(errors).length > 0 ? errors : undefined,
   };
 }
