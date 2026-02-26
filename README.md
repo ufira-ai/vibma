@@ -8,7 +8,7 @@ Let AI agents design directly in Figma — read layouts, create components,
 modify styles, and build entire design systems through conversation.
 
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Discord](https://img.shields.io/discord/1344801816498491505?color=5865F2&label=discord&logo=discord&logoColor=white)](https://discord.gg/4XTedZdwV6)
+[![Discord](https://img.shields.io/discord/1476577401298358315?color=5865F2&label=discord&logo=discord&logoColor=white)](https://discord.gg/4XTedZdwV6)
 
 <!-- TODO: demo video -->
 
@@ -34,7 +34,7 @@ Follow the instructions at https://raw.githubusercontent.com/ufira-ai/vibma/refs
 
 ## Community
 
-[![Discord Banner](https://img.shields.io/discord/1344801816498491505?color=5865F2&label=Join%20the%20Discord&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/4XTedZdwV6)
+[![Discord Banner](https://img.shields.io/discord/1476577401298358315?color=5865F2&label=Join%20the%20Discord&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/4XTedZdwV6)
 
 - [GitHub Issues](https://github.com/ufira-ai/vibma/issues) — bugs and feature requests
 
