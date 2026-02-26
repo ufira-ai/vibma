@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsup';
+import { copyFileSync } from 'fs';
 
 export default defineConfig([
   // MCP Server → dist/server.{cjs,js}
@@ -14,11 +15,11 @@ export default defineConfig([
     splitting: false,
     bundle: true,
   },
-  // Figma Plugin → src/figma-plugin/code.js (IIFE for Figma sandbox)
+  // Figma Plugin → plugin/code.js (IIFE for Figma sandbox)
   {
     entry: ['src/figma-plugin/code.ts'],
     format: ['iife'],
-    outDir: 'src/figma-plugin',
+    outDir: 'plugin',
     outExtension: () => ({ js: '.js' }),
     target: 'es2015',
     sourcemap: false,
@@ -28,5 +29,9 @@ export default defineConfig([
     // Figma plugin sandbox provides `figma` and `__html__` globals
     globalName: undefined,
     noExternal: [/.*/],
+    async onSuccess() {
+      copyFileSync('src/figma-plugin/manifest.json', 'plugin/manifest.json');
+      copyFileSync('src/figma-plugin/ui.html', 'plugin/ui.html');
+    },
   },
 ]);
