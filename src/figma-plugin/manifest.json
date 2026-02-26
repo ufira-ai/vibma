@@ -11,12 +11,12 @@
   "permissions": [],
   "networkAccess": {
     "allowedDomains": [
-      "ws://localhost:3055"
+      "ws://localhost:3056"
     ],
     "reasoning": "A plugin serving as bridge to Vibma MCP for usage by AI Agents.",
     "devAllowedDomains": [
-      "http://localhost:3055",
-      "ws://localhost:3055"
+      "http://localhost:3056",
+      "ws://localhost:3056"
     ]
   },
   "documentAccess": "dynamic-page"

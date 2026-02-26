@@ -280,8 +280,8 @@
             <input
               type="number"
               id="port"
-              placeholder="3055"
-              value="3055"
+              placeholder="3056"
+              value="3056"
               min="1024"
               max="65535"
             />
@@ -377,7 +377,7 @@
           <h2>How to Use</h2>
           <ol>
             <li>Make sure the MCP server is running in Cursor</li>
-            <li>Connect to the server using the port number (default: 3055)</li>
+            <li>Connect to the server using the port number (default: 3056)</li>
             <li>Once connected, you can interact with Figma through Cursor</li>
           </ol>
         </div>
@@ -389,7 +389,7 @@
       const state = {
         connected: false,
         socket: null,
-        serverPort: 3055,
+        serverPort: 3056,
         pendingRequests: new Map(),
         channel: null,
       };
@@ -713,7 +713,7 @@
           connectionStatus.className = "status info";
           disconnectFromServer();
         } else {
-          const port = parseInt(portInput.value, 10) || 3055;
+          const port = parseInt(portInput.value, 10) || 3056;
           updateConnectionStatus(false, "Connecting...");
           connectionStatus.className = "status info";
           connectToServer(port);

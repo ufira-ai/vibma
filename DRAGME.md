@@ -31,7 +31,7 @@ This bridges the MCP server and the Figma plugin via channels.
 SSL_KEY_PATH=certs/key.pem SSL_CERT_PATH=certs/cert.pem bun socket
 ```
 
-You should see: `WebSocket server running on port 3055`
+You should see: `WebSocket server running on port 3056`
 
 ## 4. Install the Figma plugin
 
@@ -76,8 +76,8 @@ Or run from source (no build step, good for development):
 
 ## Troubleshooting
 
-**Plugin won't connect to WebSocket**: Make sure the SSL certs exist and the server is running with the `SSL_KEY_PATH` and `SSL_CERT_PATH` env vars set. The plugin connects to `wss://localhost:3055`.
+**Plugin won't connect to WebSocket**: Make sure the SSL certs exist and the server is running with the `SSL_KEY_PATH` and `SSL_CERT_PATH` env vars set. The plugin connects to `wss://localhost:3056`.
 
 **MCP shows disconnected**: Restart your AI tool after changing MCP config. Stdio-based MCP servers can't hot-reload.
 
-**Port 3055 already in use**: Kill the existing process (`lsof -ti:3055 | xargs kill`) or set a different port with `PORT=3056`.
+**Port 3056 already in use**: Kill the existing process (`lsof -ti:3056 | xargs kill`) or set a different port with `PORT=3056`.

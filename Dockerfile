@@ -10,7 +10,7 @@ COPY package*.json ./
 RUN bun install
 
 # Expose the port on which the API will listen
-EXPOSE 3055
+EXPOSE 3056
 
 # Run the server when the container launches
 CMD ["bun", "src/mcp.ts"]

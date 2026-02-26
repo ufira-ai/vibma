@@ -6,7 +6,7 @@ import { allFigmaHandlers } from "../tools/figma-registry";
 // ─── Plugin State ────────────────────────────────────────────────
 
 const state = {
-  serverPort: 3055,
+  serverPort: 3056,
   channelName: "",
 };
 
