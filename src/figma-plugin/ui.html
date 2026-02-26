@@ -388,7 +388,7 @@
 
         // Add instructions for localhost when disconnected
         if (!isConnected) {
-          statusMessage += `<br><br>Start the relay first, then connect<br><code>SSL_KEY_PATH=certs/key.pem SSL_CERT_PATH=certs/cert.pem bun socket</code>`;
+          statusMessage += `<br><br>Start the relay first, then click Connect.`;
         }
 
         connectionStatus.innerHTML = statusMessage;
