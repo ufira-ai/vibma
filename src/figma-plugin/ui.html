@@ -388,7 +388,7 @@
 
         // Add instructions for localhost when disconnected
         if (!isConnected) {
-          statusMessage += `<br><br>Start the relay first, then click Connect.`;
+          statusMessage += `<br><br><a class="link" onclick="window.open('https://github.com/ufira-ai/vibma/blob/main/DRAGME.md', '_blank')">Setup guide</a>`;
         }
 
         connectionStatus.innerHTML = statusMessage;
