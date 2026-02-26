@@ -66,7 +66,8 @@
         cursor: not-allowed;
       }
 
-      input {
+      input,
+      select {
         border: 1px solid #444444;
         border-radius: 4px;
         padding: 8px;
@@ -277,14 +278,12 @@
 
           <div id="port-container">
             <label for="port">WebSocket Server Port</label>
-            <input
-              type="number"
-              id="port"
-              placeholder="3055"
-              value="3055"
-              min="1024"
-              max="65535"
-            />
+            <select id="port">
+              <option value="3055" selected>3055</option>
+              <option value="3056">3056</option>
+              <option value="3057">3057</option>
+              <option value="3058">3058</option>
+            </select>
             <label for="channel-name">Channel Name</label>
             <input
               type="text"
@@ -297,34 +296,10 @@
         </div>
 
         <div id="connection-status" class="status disconnected">
-          Not connected to Cursor MCP server
+          Not connected to Vibma relay
         </div>
 
-        <div id="mcp-config" class="section hidden">
-          <h2>MCP Configuration</h2>
-          <p>
-            Copy this configuration to your <code>mcp.json</code> file in
-            Cursor:
-          </p>
-          <textarea
-            id="mcp-json"
-            rows="5"
-            readonly
-            style="
-              width: 100%;
-              background: #2d2d2d;
-              color: #e0e0e0;
-              padding: 12px;
-              border: 1px solid #444444;
-              border-radius: 4px;
-              font-family: monospace;
-              margin-bottom: 8px;
-            "
-          ></textarea>
-          <button id="btn-copy" class="secondary">Copy to Clipboard</button>
-        </div>
-
-        <!-- Add Progress Bar Section -->
+        <!-- Progress Bar Section -->
         <div id="progress-container" class="section hidden">
           <h2>Operation Progress</h2>
           <div id="progress-message">No operation in progress</div>
@@ -364,23 +339,12 @@
       <div id="content-about" class="tab-content">
         <div class="section">
           <h2>About Vibma</h2>
+          <p>Vibe Design meets Figma — AI-powered MCP bridge.</p>
           <p>
-            Vibma lets AI agents communicate with Figma, enabling
-            vibe-driven design workflows.
-            <a
-              class="link"
-              onclick="window.open(`https://github.com/ufira-ai/vibma`, '_blank')"
-              >Github</a
-            >
+            <a class="link" onclick="window.open('https://github.com/ufira-ai/vibma', '_blank')">GitHub</a>
+            &nbsp;·&nbsp;
+            <a class="link" onclick="window.open('https://discord.gg/4XTedZdwV6', '_blank')">Discord</a>
           </p>
-          <p>Version: 1.1.0</p>
-
-          <h2>How to Use</h2>
-          <ol>
-            <li>Make sure the MCP server is running in Cursor</li>
-            <li>Connect to the server using the port number (default: 3055)</li>
-            <li>Once connected, you can interact with Figma through Cursor</li>
-          </ol>
         </div>
       </div>
     </div>
@@ -419,12 +383,12 @@
         let statusMessage =
           message ||
           (isConnected
-            ? "Connected to Cursor MCP server"
-            : "Not connected to Cursor MCP server");
+            ? "Connected to Vibma relay"
+            : "Not connected to Vibma relay");
 
         // Add instructions for localhost when disconnected
         if (!isConnected) {
-          statusMessage += `<br><br>Run this in your terminal, then connect<br><code>bunx vibma-socket</code>`;
+          statusMessage += `<br><br>Start the relay first, then connect<br><code>SSL_KEY_PATH=certs/key.pem SSL_CERT_PATH=certs/cert.pem bun socket</code>`;
         }
 
         connectionStatus.innerHTML = statusMessage;
@@ -438,14 +402,6 @@
         portInput.disabled = isConnected;
         channelInput.disabled = isConnected;
 
-        // Show/hide MCP config section
-        const mcpConfig = document.getElementById("mcp-config");
-        mcpConfig.className = `section ${isConnected ? "" : "hidden"}`;
-
-        // Update MCP config text when showing
-        if (isConnected) {
-          updateMcpConfig();
-        }
       }
 
       // Connect to WebSocket server
@@ -497,7 +453,7 @@
                     {
                       pluginMessage: {
                         type: "notify",
-                        message: `Connected to Cursor MCP server on port ${port} in channel: ${channelName}`,
+                        message: `Connected to Vibma relay on port ${port} in channel: ${channelName}`,
                       },
                     },
                     "*"
@@ -827,35 +783,6 @@
         }
       };
 
-      // Add this to the script section, after all the other event listeners
-      document.getElementById("btn-copy").addEventListener("click", () => {
-        const textarea = document.getElementById("mcp-json");
-        textarea.select();
-        document.execCommand("copy");
-        const button = document.getElementById("btn-copy");
-        button.textContent = "Copied!";
-        setTimeout(() => {
-          button.textContent = "Copy to Clipboard";
-        }, 2000);
-      });
-
-      // Add this function to the script section
-      function updateMcpConfig() {
-        const mcpConfig = {
-          mcpServers: {
-            Vibma: {
-              command: "bunx",
-              args: ["vibma-mcp@latest"],
-            },
-          },
-        };
-
-        document.getElementById("mcp-json").value = JSON.stringify(
-          mcpConfig,
-          null,
-          2
-        );
-      }
     </script>
   </body>
 </html>
