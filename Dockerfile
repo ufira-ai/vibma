@@ -13,4 +13,4 @@ RUN bun install
 EXPOSE 3055
 
 # Run the server when the container launches
-CMD ["bun", "src/talk_to_figma_mcp/server.ts"]
+CMD ["bun", "src/mcp.ts"]

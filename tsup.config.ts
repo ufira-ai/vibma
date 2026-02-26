@@ -2,9 +2,9 @@ import { defineConfig } from 'tsup';
 import { copyFileSync } from 'fs';
 
 export default defineConfig([
-  // MCP Server → dist/server.{cjs,js}
+  // MCP Server → dist/mcp.{cjs,js}
   {
-    entry: ['src/vibma_mcp/server.ts'],
+    entry: ['src/mcp.ts'],
     format: ['cjs', 'esm'],
     dts: true,
     clean: true,

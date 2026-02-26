@@ -2,10 +2,10 @@
   "name": "vibma-mcp",
   "description": "Vibma — Vibe Design meets Figma. AI-powered MCP bridge for designing in Figma.",
   "version": "0.3.3",
-  "module": "dist/server.js",
-  "main": "dist/server.js",
+  "module": "dist/mcp.js",
+  "main": "dist/mcp.js",
   "bin": {
-    "vibma-mcp": "dist/server.js"
+    "vibma-mcp": "dist/mcp.js"
   },
   "files": [
     "dist",
@@ -13,13 +13,13 @@
   ],
   "type": "module",
   "scripts": {
-    "start": "bun run dist/server.js",
+    "start": "bun run dist/mcp.js",
     "socket": "bun run src/socket.ts",
     "setup": "./scripts/setup.sh",
     "build": "tsup",
     "build:watch": "tsup --watch",
     "dev": "bun run build:watch",
-    "dev:mcp": "bun run src/vibma_mcp/server.ts",
+    "dev:mcp": "bun run src/mcp.ts",
     "pub:release": "bun run build && npm publish"
   },
   "devDependencies": {

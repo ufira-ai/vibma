@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
-import { registerAllTools } from "../tools/mcp-registry";
+import { registerAllTools } from "./tools/mcp-registry";
 
 // ─── Logger (stderr so it doesn't pollute MCP stdio) ────────────
 const logger = {

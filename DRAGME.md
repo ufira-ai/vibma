@@ -48,7 +48,7 @@ Add to your MCP config (e.g. `.cursor/mcp.json`, `.claude.json`, or `.mcp.json`)
   "mcpServers": {
     "Vibma": {
       "command": "node",
-      "args": ["dist/server.js"]
+      "args": ["dist/mcp.js"]
     }
   }
 }
@@ -61,7 +61,7 @@ Or run from source (no build step, good for development):
   "mcpServers": {
     "Vibma": {
       "command": "bun",
-      "args": ["run", "src/vibma_mcp/server.ts"]
+      "args": ["run", "src/mcp.ts"]
     }
   }
 }
