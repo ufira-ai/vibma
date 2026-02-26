@@ -1,25 +1,41 @@
-# Vibma
+<div align="center">
 
-**Vibe Design meets Figma.** Let AI agents design directly in Figma — read layouts, create components, modify styles, and build entire design systems through conversation.
+# ✦ Vibma
+
+**Vibe Design meets Figma.**
+
+Let AI agents design directly in Figma — read layouts, create components,
+modify styles, and build entire design systems through conversation.
+
+[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Discord](https://img.shields.io/discord/1344801816498491505?color=5865F2&label=discord&logo=discord&logoColor=white)](https://discord.gg/4XTedZdwV6)
 
 <!-- TODO: demo video -->
 
+</div>
+
+---
+
 ## Setup
 
-For manual setup or if you care about what's running on your machine, follow the [full setup guide](./DRAGME.md).
+Two paths:
 
-Otherwise, paste this to your AI agent and let it figure it out:
+| | Guide | For |
+|---|---|---|
+| 📦 | [**DRAGME.md**](./DRAGME.md) | Clone the repo, build from source, full control |
+| ☁️ | [**CARRYME.md**](./CARRYME.md) | Install from Figma store, zero cloning *(coming soon)* |
+
+Or just paste this to your AI agent and let it figure it out:
 
 ```
 Set up Vibma so I can vibe-design in Figma.
 Follow the instructions at https://raw.githubusercontent.com/ufira-ai/vibma/refs/heads/main/DRAGME.md
 ```
 
-Good luck vibing.
-
 ## Community
 
-- [Discord](https://discord.gg/4XTedZdwV6) — get help, share workflows, see what others are building
+[![Discord Banner](https://img.shields.io/discord/1344801816498491505?color=5865F2&label=Join%20the%20Discord&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/4XTedZdwV6)
+
 - [GitHub Issues](https://github.com/ufira-ai/vibma/issues) — bugs and feature requests
 
 Vibma is the first open-source project from **[ufira](https://github.com/ufira-ai)** — a platform bridging creators and technology. We believe every creator should have access to AI-powered design tools, not just developers.
