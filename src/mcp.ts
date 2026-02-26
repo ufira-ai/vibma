@@ -62,7 +62,7 @@ const WS_URL = serverUrl === "localhost" ? `ws://${serverUrl}` : `wss://${server
 
 // ─── WebSocket connection ────────────────────────────────────────
 
-function connectToFigma(port: number = 3055) {
+function connectToFigma(port: number = parseInt(process.env.VIBMA_PORT || "3055")) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     logger.info("Already connected to Figma");
     return;

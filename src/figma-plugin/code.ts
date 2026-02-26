@@ -36,7 +36,7 @@ const SKIP_FOCUS = new Set([
   "get_style_by_id", "get_local_variables", "get_local_variable_collections",
   "get_variable_by_id", "get_variable_collection_by_id",
   "search_nodes", "search_components", "scan_text_nodes", "export_node_as_image",
-  "lint_node", "get_node_variables",
+  "lint_node", "get_node_variables", "ping",
 ]);
 
 function extractNodeIds(result: any, params: any): string[] {

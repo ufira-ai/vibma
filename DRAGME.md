@@ -34,11 +34,13 @@ You should see: `WebSocket server running on port 3055`
 
 ### About ports
 
-Vibma defaults to port **3055**. The Figma plugin manifest whitelists ports **3055–3058** so you have alternatives if 3055 is already in use (e.g., by the upstream cursor-talk-to-figma-mcp project). To use a different port, you must change it in **three places**:
+Vibma defaults to port **3055**. The Figma plugin manifest whitelists ports **3055–3058** so you have alternatives if 3055 is already in use (e.g., by the upstream cursor-talk-to-figma-mcp project). To use a different port, set the `VIBMA_PORT` env var:
 
-1. `src/socket.ts` — the relay server port
-2. `src/mcp.ts` — the `connectToFigma()` default port
-3. Figma plugin UI — the port input field (top of the connection panel)
+```bash
+SSL_KEY_PATH=certs/key.pem SSL_CERT_PATH=certs/cert.pem VIBMA_PORT=3056 bun socket
+```
+
+The MCP server reads the same env var, so it will match automatically. You only need to also update the **port field in the Figma plugin UI** before clicking Connect.
 
 The Figma plugin can only connect to ports 3055, 3056, 3057, or 3058. This is a Figma platform restriction — the manifest's `allowedDomains` cannot be changed at runtime.
 
@@ -119,38 +121,26 @@ lsof -ti:3057 || echo "3057 is free"
 lsof -ti:3058 || echo "3058 is free"
 ```
 
-Use the first free port. Update `src/socket.ts` and `src/mcp.ts` to use the chosen port. Inform the user to set the same port in the Figma plugin UI before clicking Connect.
+Use the first free port. Set `VIBMA_PORT=<port>` when starting the relay and MCP server. Inform the user to set the same port in the Figma plugin UI before clicking Connect.
 
 If all four ports (3055–3058) are occupied, tell the user they need to free one.
 
 ### Connection verification
 
-After the user says they've connected the Figma plugin, run this diagnostic sequence:
+After the user says they've connected the Figma plugin:
 
-**Step 1 — Verify the relay is running:**
+1. Call `join_channel` with the channel name shown in the Figma plugin UI.
+2. Call `ping`. Expected response: `{ status: "pong", documentName: "...", currentPage: "...", timestamp: ... }`
 
-```bash
-lsof -ti:3055 && echo "Relay is listening" || echo "ERROR: Relay is not running"
-```
+If `ping` returns a `pong` with a document name, the full chain is verified — MCP server, relay, plugin, and Figma are all talking. Proceed with design tasks.
 
-**Step 2 — Verify MCP can reach the relay:**
-
-Call `join_channel` with the channel name shown in the Figma plugin UI. If this succeeds, the MCP server is connected to the relay.
-
-**Step 3 — Verify end-to-end Figma connection:**
-
-Call `get_document_info`. Expected result: a JSON object with the document name, pages, and node tree.
-
-**If Step 2 fails** (timeout or connection refused):
+**If `join_channel` fails** (timeout or connection refused):
 - Confirm the relay is running (`bun socket` terminal still active)
 - Confirm the port matches between relay, MCP config, and plugin UI
-- Check SSL certs exist at the paths specified in the `SSL_KEY_PATH` and `SSL_CERT_PATH` env vars
+- Check SSL certs exist at the paths specified in `SSL_KEY_PATH` and `SSL_CERT_PATH`
 
-**If Step 3 fails** (Step 2 succeeded but no Figma response):
-- The Figma plugin is not connected. Ask the user to:
+**If `ping` fails** (join succeeded but no pong):
+- The Figma plugin is not connected to the relay. Ask the user to:
   1. Open the Figma plugin panel
   2. Confirm the status shows "Connected" with the correct channel name
   3. If disconnected, click Connect and ensure the port matches the relay
-- Check that the channel name in `join_channel` matches exactly what the plugin shows
-
-**If Step 3 returns data:** Connection is verified. Proceed with design tasks.
