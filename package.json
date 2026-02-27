@@ -1,7 +1,22 @@
 {
-  "name": "vibma-mcp",
+  "name": "@ufira/vibma",
   "description": "Vibma — Vibe Design meets Figma. AI-powered MCP bridge for designing in Figma.",
   "version": "0.1.0",
+  "license": "MIT",
+  "author": "ufira <https://github.com/ufira-ai>",
+  "homepage": "https://github.com/ufira-ai/vibma",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ufira-ai/vibma.git"
+  },
+  "keywords": [
+    "figma",
+    "mcp",
+    "ai",
+    "design",
+    "model-context-protocol",
+    "vibe-coding"
+  ],
   "module": "dist/mcp.js",
   "main": "dist/mcp.js",
   "bin": {
@@ -9,24 +24,26 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "type": "module",
   "scripts": {
-    "start": "bun run dist/mcp.js",
-    "socket": "bun run src/socket.ts",
+    "start": "node dist/mcp.js",
+    "socket": "tsx packages/tunnel/src/index.ts",
     "setup": "./scripts/setup.sh",
     "build": "tsup",
     "build:watch": "tsup --watch",
-    "dev": "bun run build:watch",
-    "dev:mcp": "bun run src/mcp.ts",
-    "pub:release": "bun run build && npm publish"
+    "dev": "npm run build:watch",
+    "dev:mcp": "tsx src/mcp.ts",
+    "pub:release": "npm run build && npm publish"
   },
   "devDependencies": {
     "@figma/plugin-typings": "^1.123.0",
-    "@types/bun": "latest",
-    "bun-types": "^1.3.10",
+    "@types/node": "^25.3.2",
+    "@types/ws": "^8.18.1",
     "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
