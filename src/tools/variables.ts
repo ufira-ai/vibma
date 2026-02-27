@@ -3,6 +3,7 @@ import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
+import { findVariableById } from "./helpers";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -193,20 +194,29 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
+/** Resolve a variable collection by ID with scan fallback.
+ *  Direct lookup can fail for recently-created collections. */
+async function findCollectionById(id: string): Promise<any> {
+  const direct = await figma.variables.getVariableCollectionByIdAsync(id);
+  if (direct) return direct;
+  const all = await figma.variables.getLocalVariableCollectionsAsync();
+  return all.find(c => c.id === id) || null;
+}
+
 async function createCollectionSingle(p: any) {
   const collection = figma.variables.createVariableCollection(p.name);
   return { id: collection.id, modes: collection.modes, defaultModeId: collection.defaultModeId };
 }
 
 async function createVariableSingle(p: any) {
-  const collection = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
+  const collection = await findCollectionById(p.collectionId);
   if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
   const variable = figma.variables.createVariable(p.name, collection, p.resolvedType);
   return { id: variable.id };
 }
 
 async function setValueSingle(p: any) {
-  const variable = await figma.variables.getVariableByIdAsync(p.variableId);
+  const variable = await findVariableById(p.variableId);
   if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
   let value = p.value;
   if (typeof value === "object" && value !== null && "r" in value) {
@@ -239,13 +249,13 @@ async function getLocalCollectionsFigma() {
 }
 
 async function getVariableByIdFigma(params: any) {
-  const v = await figma.variables.getVariableByIdAsync(params.variableId);
+  const v = await findVariableById(params.variableId);
   if (!v) throw new Error(`Variable not found: ${params.variableId}`);
   return { id: v.id, name: v.name, resolvedType: v.resolvedType, variableCollectionId: v.variableCollectionId, valuesByMode: v.valuesByMode, description: v.description, scopes: v.scopes };
 }
 
 async function getCollectionByIdFigma(params: any) {
-  const c = await figma.variables.getVariableCollectionByIdAsync(params.collectionId);
+  const c = await findCollectionById(params.collectionId);
   if (!c) throw new Error(`Collection not found: ${params.collectionId}`);
   return { id: c.id, name: c.name, modes: c.modes, defaultModeId: c.defaultModeId, variableIds: c.variableIds };
 }
@@ -253,7 +263,7 @@ async function getCollectionByIdFigma(params: any) {
 async function setBindingSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-  const variable = await figma.variables.getVariableByIdAsync(p.variableId);
+  const variable = await findVariableById(p.variableId);
   if (!variable) throw new Error(`Variable not found: ${p.variableId}`);
 
   const paintMatch = p.field.match(/^(fills|strokes)\/(\d+)\/color$/);
@@ -275,21 +285,21 @@ async function setBindingSingle(p: any) {
 }
 
 async function addModeSingle(p: any) {
-  const c = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
+  const c = await findCollectionById(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
   const modeId = c.addMode(p.name);
   return { modeId, modes: c.modes };
 }
 
 async function renameModeSingle(p: any) {
-  const c = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
+  const c = await findCollectionById(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
   c.renameMode(p.modeId, p.name);
   return { modes: c.modes };
 }
 
 async function removeModeSingle(p: any) {
-  const c = await figma.variables.getVariableCollectionByIdAsync(p.collectionId);
+  const c = await findCollectionById(p.collectionId);
   if (!c) throw new Error(`Collection not found: ${p.collectionId}`);
   c.removeMode(p.modeId);
   return { modes: c.modes };
@@ -298,8 +308,14 @@ async function removeModeSingle(p: any) {
 async function setExplicitModeSingle(p: any) {
   const node = await figma.getNodeByIdAsync(p.nodeId);
   if (!node) throw new Error(`Node not found: ${p.nodeId}`);
-  if (!("setExplicitVariableModeForCollection" in node)) throw new Error(`Node does not support explicit variable modes: ${p.nodeId}`);
-  (node as any).setExplicitVariableModeForCollection(p.collectionId, p.modeId);
+  if (!("setExplicitVariableModeForCollection" in node)) throw new Error(`Node ${p.nodeId} (${node.type}) does not support explicit variable modes. Use a FRAME, COMPONENT, or COMPONENT_SET.`);
+  const collection = await findCollectionById(p.collectionId);
+  if (!collection) throw new Error(`Collection not found: ${p.collectionId}`);
+  try {
+    (node as any).setExplicitVariableModeForCollection(collection, p.modeId);
+  } catch (e: any) {
+    throw new Error(`Failed to set mode '${p.modeId}' on node ${p.nodeId}: ${e.message}. Ensure the modeId is valid for collection '${collection.name}'.`);
+  }
   return {};
 }
 

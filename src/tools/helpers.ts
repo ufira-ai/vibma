@@ -78,6 +78,17 @@ export function solidPaint(c: any) {
 }
 
 /**
+ * Resolve a variable by ID with scan fallback.
+ * Direct lookup can fail for recently-created variables.
+ */
+export async function findVariableById(id: string): Promise<any> {
+  const direct = await figma.variables.getVariableByIdAsync(id);
+  if (direct) return direct;
+  const all = await figma.variables.getLocalVariablesAsync();
+  return all.find(v => v.id === id) || null;
+}
+
+/**
  * Format a "style not found" hint that includes available style names
  * so the agent can self-correct (e.g. "Heading" → "Heading/H2").
  */

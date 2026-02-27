@@ -112,7 +112,10 @@ async function setCurrentPage(params: any) {
     const name = params.pageName.toLowerCase();
     page = figma.root.children.find((p: any) => p.name.toLowerCase() === name);
     if (!page) page = figma.root.children.find((p: any) => p.name.toLowerCase().includes(name));
-    if (!page) throw new Error(`Page not found: ${params.pageName}`);
+    if (!page) {
+      const available = figma.root.children.map((p: any) => p.name);
+      throw new Error(`Page not found: '${params.pageName}'. Available pages: [${available.join(", ")}]`);
+    }
   }
   await figma.setCurrentPageAsync(page);
   return { id: page.id, name: page.name };

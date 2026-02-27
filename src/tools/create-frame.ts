@@ -3,7 +3,7 @@ import { flexJson } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
 
 // ─── Schema ──────────────────────────────────────────────────────
 
@@ -129,7 +129,7 @@ async function createSingleFrame(p: any) {
   const hints: string[] = [];
   let fillTokenized = false;
   if (fillVariableId) {
-    const v = await figma.variables.getVariableByIdAsync(fillVariableId);
+    const v = await findVariableById(fillVariableId);
     if (v) {
       frame.fills = [solidPaint(fillColor || { r: 0, g: 0, b: 0 })];
       const bound = figma.variables.setBoundVariableForPaint(frame.fills[0] as SolidPaint, "color", v);
@@ -153,7 +153,7 @@ async function createSingleFrame(p: any) {
   // Stroke: variableId > styleName > direct color
   let strokeTokenized = false;
   if (strokeVariableId) {
-    const v = await figma.variables.getVariableByIdAsync(strokeVariableId);
+    const v = await findVariableById(strokeVariableId);
     if (v) {
       frame.strokes = [solidPaint(strokeColor || { r: 0, g: 0, b: 0 })];
       const bound = figma.variables.setBoundVariableForPaint(frame.strokes[0] as SolidPaint, "color", v);

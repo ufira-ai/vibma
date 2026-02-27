@@ -71,6 +71,11 @@ async function autoFocus(nodeIds: string[]) {
 
 // ─── Message Handling ────────────────────────────────────────────
 
+// Serialized autoFocus: tracked so the next command waits for it to finish.
+// This prevents race conditions where viewport/selection changes from autoFocus
+// interfere with getNodeByIdAsync in the next command.
+let pendingAutoFocus: Promise<void> | null = null;
+
 figma.ui.onmessage = async (msg: any) => {
   switch (msg.type) {
     case "update-settings":
@@ -84,20 +89,25 @@ figma.ui.onmessage = async (msg: any) => {
       break;
     case "execute-command":
       try {
+        // Wait for any pending autoFocus from the previous command
+        if (pendingAutoFocus) {
+          await pendingAutoFocus;
+          pendingAutoFocus = null;
+        }
         const result = await handleCommand(msg.command, msg.params);
         figma.ui.postMessage({
           type: "command-result",
           id: msg.id,
           result,
         });
-        // Auto-focus disabled: fire-and-forget caused race conditions where
-        // Figma native operations (selection, viewport scroll) from the previous
-        // command interfered with getNodeByIdAsync in the next command.
-        // TODO: re-enable with serialization (await pending autoFocus before next command)
-        // if (!SKIP_FOCUS.has(msg.command)) {
-        //   const ids = extractNodeIds(result, msg.params);
-        //   if (ids.length > 0) autoFocus(ids).catch(() => {});
-        // }
+        // Start autoFocus after response is sent (non-blocking for current command,
+        // but the next command will await it before running)
+        if (!SKIP_FOCUS.has(msg.command)) {
+          const ids = extractNodeIds(result, msg.params);
+          if (ids.length > 0) {
+            pendingAutoFocus = autoFocus(ids).catch(() => {});
+          }
+        }
       } catch (error: any) {
         figma.ui.postMessage({
           type: "command-error",

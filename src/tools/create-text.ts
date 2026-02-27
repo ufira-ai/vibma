@@ -3,7 +3,7 @@ import { flexJson } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { batchHandler, appendToParent, styleNotFoundHint, suggestStyleForColor, suggestTextStyle } from "./helpers";
+import { batchHandler, appendToParent, styleNotFoundHint, suggestStyleForColor, suggestTextStyle, findVariableById } from "./helpers";
 
 // ─── Schema ──────────────────────────────────────────────────────
 
@@ -148,7 +148,7 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
       const hints: string[] = [];
       let colorTokenized = false;
       if (fontColorVariableId) {
-        const v = await figma.variables.getVariableByIdAsync(fontColorVariableId);
+        const v = await findVariableById(fontColorVariableId);
         if (v) {
           const fc = fontColor || { r: 0, g: 0, b: 0, a: 1 };
           textNode.fills = [{ type: "SOLID", color: { r: fc.r ?? 0, g: fc.g ?? 0, b: fc.b ?? 0 }, opacity: fc.a ?? 1 }];

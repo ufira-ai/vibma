@@ -208,14 +208,6 @@ async function setTextPropertiesBatch(params: any): Promise<{ results: any[] }> 
         }];
       }
 
-      // Warn about manual font/color without styles
-      if (!resolvedStyleId && !props.textStyleName && !props.textStyleId &&
-          (props.fontSize !== undefined || props.fontWeight !== undefined)) {
-        const fs = props.fontSize ?? (typeof node.fontSize === "number" ? node.fontSize : 14);
-        const fw = props.fontWeight ?? 400;
-        warnings.push(await suggestTextStyle(fs, fw));
-      }
-
       if (props.textAlignHorizontal) node.textAlignHorizontal = props.textAlignHorizontal;
       if (props.textAlignVertical) node.textAlignVertical = props.textAlignVertical;
       if (props.textAutoResize) node.textAutoResize = props.textAutoResize;
@@ -237,6 +229,12 @@ async function setTextPropertiesBatch(params: any): Promise<{ results: any[] }> 
       const warnings: string[] = [];
       if (props.textStyleName && props.textStyleId) {
         warnings.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one.");
+      }
+      if (!resolvedStyleId && !props.textStyleName && !props.textStyleId &&
+          (props.fontSize !== undefined || props.fontWeight !== undefined)) {
+        const fs = props.fontSize ?? (typeof node.fontSize === "number" ? node.fontSize : 14);
+        const fw = props.fontWeight ?? 400;
+        warnings.push(await suggestTextStyle(fs, fw));
       }
       if (props.fontColor) {
         const suggestion = await suggestStyleForColor(props.fontColor, "fontColorStyleName");

@@ -142,7 +142,8 @@ async function lintNodeHandler(params: any): Promise<any> {
 
   const result: any = { nodeId: root.id, nodeName: root.name, categories };
   if (truncated) {
-    result.warning = `Capped at ${maxFindings} findings. Fix these first, then re-lint.`;
+    const breakdown = categories.map(c => `${c.rule}: ${c.count}`).join(", ");
+    result.warning = `Showing first ${maxFindings} findings (${breakdown}). Increase maxFindings or lint specific rules (e.g. rules: ["hardcoded-color"]) to see more.`;
   }
   return result;
 }

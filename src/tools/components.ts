@@ -3,7 +3,7 @@ import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor } from "./helpers";
+import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -167,7 +167,7 @@ async function resolvePaintStyle(name: string): Promise<{ id: string | null, ava
 }
 
 async function bindFillVariable(node: any, variableId: string, fallbackColor?: any) {
-  const v = await figma.variables.getVariableByIdAsync(variableId);
+  const v = await findVariableById(variableId);
   if (!v) return false;
   node.fills = [solidPaint(fallbackColor || { r: 0, g: 0, b: 0 })];
   const bound = figma.variables.setBoundVariableForPaint(node.fills[0], "color", v);
@@ -176,7 +176,7 @@ async function bindFillVariable(node: any, variableId: string, fallbackColor?: a
 }
 
 async function bindStrokeVariable(node: any, variableId: string, fallbackColor?: any) {
-  const v = await figma.variables.getVariableByIdAsync(variableId);
+  const v = await findVariableById(variableId);
   if (!v) return false;
   node.strokes = [solidPaint(fallbackColor || { r: 0, g: 0, b: 0 })];
   const bound = figma.variables.setBoundVariableForPaint(node.strokes[0], "color", v);
@@ -309,6 +309,11 @@ async function addPropSingle(p: any) {
 
 async function instanceSingle(p: any) {
   let node: any = await figma.getNodeByIdAsync(p.componentId);
+  if (!node) {
+    // Component may be on another page — load all pages and retry
+    await figma.loadAllPagesAsync();
+    node = await figma.getNodeByIdAsync(p.componentId);
+  }
   if (!node) throw new Error(`Component not found: ${p.componentId}`);
   if (node.type === "COMPONENT_SET") {
     if (!node.children?.length) throw new Error("Component set has no variants");

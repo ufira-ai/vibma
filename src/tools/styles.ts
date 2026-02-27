@@ -117,10 +117,8 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-/** Strip trailing comma from Figma's internal style ID format (S:hex,) */
-function cleanStyleId(id: string): string { return id.replace(/,$/, ""); }
-
-/** Ensure Figma-internal trailing comma is present for API lookups */
+/** Ensure Figma-internal trailing comma is present for API lookups.
+ *  Accepts both raw (S:hex,) and stripped (S:hex) formats for backward compat. */
 function ensureStyleId(id: string): string {
   return id.startsWith("S:") && !id.endsWith(",") ? id + "," : id;
 }
@@ -133,10 +131,10 @@ async function getStylesFigma() {
     figma.getLocalGridStylesAsync(),
   ]);
   return {
-    colors: colors.map(s => ({ id: cleanStyleId(s.id), name: s.name })),
-    texts: texts.map(s => ({ id: cleanStyleId(s.id), name: s.name })),
-    effects: effects.map(s => ({ id: cleanStyleId(s.id), name: s.name })),
-    grids: grids.map(s => ({ id: cleanStyleId(s.id), name: s.name })),
+    colors: colors.map(s => ({ id: s.id, name: s.name })),
+    texts: texts.map(s => ({ id: s.id, name: s.name })),
+    effects: effects.map(s => ({ id: s.id, name: s.name })),
+    grids: grids.map(s => ({ id: s.id, name: s.name })),
   };
 }
 
@@ -152,7 +150,7 @@ function rgbaToHex(color: any): string {
 async function getStyleByIdFigma(params: any) {
   const style = await figma.getStyleByIdAsync(ensureStyleId(params.styleId));
   if (!style) throw new Error(`Style not found: ${params.styleId}`);
-  const r: any = { id: cleanStyleId(style.id), name: style.name, type: style.type };
+  const r: any = { id: style.id, name: style.name, type: style.type };
   if (style.type === "PAINT") {
     r.paints = (style as PaintStyle).paints.map((p: any) => {
       const paint = { ...p };
@@ -182,7 +180,7 @@ async function createPaintStyleSingle(p: any) {
   style.name = p.name;
   const { r, g, b, a = 1 } = p.color;
   style.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-  return { id: cleanStyleId(style.id) };
+  return { id: style.id };
 }
 
 async function createTextStyleSingle(p: any) {
@@ -203,7 +201,7 @@ async function createTextStyleSingle(p: any) {
   }
   if (p.textCase) style.textCase = p.textCase;
   if (p.textDecoration) style.textDecoration = p.textDecoration;
-  return { id: cleanStyleId(style.id) };
+  return { id: style.id };
 }
 
 async function createEffectStyleSingle(p: any) {
@@ -217,7 +215,7 @@ async function createEffectStyleSingle(p: any) {
     if (e.spread !== undefined) eff.spread = e.spread;
     return eff;
   });
-  return { id: cleanStyleId(style.id) };
+  return { id: style.id };
 }
 
 async function applyStyleSingle(p: any) {
@@ -254,7 +252,7 @@ async function applyStyleSingle(p: any) {
     case "effect": await (node as any).setEffectStyleIdAsync(styleId); break;
     default: throw new Error(`Unknown style type: ${p.styleType}`);
   }
-  const result: any = { styleId: cleanStyleId(styleId) };
+  const result: any = { styleId: styleId };
   if (matchedStyle) result.matchedStyle = matchedStyle;
   // Hint when both styleId and styleName provided
   if (p.styleId && p.styleName) {
