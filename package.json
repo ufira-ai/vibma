@@ -1,7 +1,7 @@
 {
   "name": "vibma-mcp",
   "description": "Vibma — Vibe Design meets Figma. AI-powered MCP bridge for designing in Figma.",
-  "version": "0.3.3",
+  "version": "0.1.0",
   "module": "dist/mcp.js",
   "main": "dist/mcp.js",
   "bin": {
