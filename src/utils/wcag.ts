@@ -2,7 +2,7 @@
 // Shared functions for contrast checking, luminance calculation, and
 // accessibility heuristics. Used by lint rules and creation-time recommendations.
 
-import { rgbaToHex } from "./color";
+
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -136,7 +136,6 @@ export function formatContrastFailures(
   for (const existing of existingColors) {
     const result = checkContrastPair(newColor, existing.color);
     if (!result.passesAA) {
-      const newHex = rgbaToHex({ ...newColor, a: 1 });
       failures.push(`${result.ratio}:1 vs '${existing.name}' (need ${result.aaRequired}:1)`);
     }
   }

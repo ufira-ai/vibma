@@ -6,9 +6,8 @@ import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
 import { rgbaToHex } from "../utils/color";
 import {
-  srgbRelativeLuminance, contrastRatio, alphaComposite,
-  checkContrastPair, isLargeText, inferFontWeight, looksInteractive,
-  type SolidColor,
+  alphaComposite, checkContrastPair, isLargeText, inferFontWeight,
+  looksInteractive, type SolidColor,
 } from "../utils/wcag";
 
 // ─── Schemas ─────────────────────────────────────────────────────
