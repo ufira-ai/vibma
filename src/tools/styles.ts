@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
+import { formatContrastFailures } from "../utils/wcag";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -180,7 +181,20 @@ async function createPaintStyleSingle(p: any) {
   style.name = p.name;
   const { r, g, b, a = 1 } = p.color;
   style.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
-  return { id: style.id };
+
+  // WCAG contrast recommendation against existing paint styles
+  const result: any = { id: style.id };
+  const existing = await figma.getLocalPaintStylesAsync();
+  const existingColors: Array<{ name: string; color: { r: number; g: number; b: number } }> = [];
+  for (const s of existing) {
+    if (s.id === style.id) continue;
+    const solid = s.paints.find((paint: any) => paint.type === "SOLID" && paint.visible !== false);
+    if (solid) existingColors.push({ name: s.name, color: (solid as SolidPaint).color });
+  }
+  const contrastReport = formatContrastFailures({ r, g, b }, existingColors);
+  if (contrastReport) result.warning = contrastReport;
+
+  return result;
 }
 
 async function createTextStyleSingle(p: any) {
@@ -201,7 +215,25 @@ async function createTextStyleSingle(p: any) {
   }
   if (p.textCase) style.textCase = p.textCase;
   if (p.textDecoration) style.textDecoration = p.textDecoration;
-  return { id: style.id };
+
+  // WCAG recommendations for text styles
+  const result: any = { id: style.id };
+  const hints: string[] = [];
+  if (p.fontSize < 12) {
+    hints.push("Accessibility: Text style below 12px may be difficult to read for many users.");
+  }
+  if (p.lineHeight !== undefined && p.lineHeight !== "AUTO") {
+    let lhPx: number | null = null;
+    if (typeof p.lineHeight === "number") lhPx = p.lineHeight;
+    else if (p.lineHeight.unit === "PIXELS") lhPx = p.lineHeight.value;
+    else if (p.lineHeight.unit === "PERCENT") lhPx = (p.lineHeight.value / 100) * p.fontSize;
+    if (lhPx !== null && lhPx / p.fontSize < 1.5) {
+      hints.push(`WCAG 1.4.12: Line height of ${Math.ceil(p.fontSize * 1.5)}px (1.5\u00d7 font size) recommended for readability.`);
+    }
+  }
+  if (hints.length > 0) result.warning = hints.join(" ");
+
+  return result;
 }
 
 async function createEffectStyleSingle(p: any) {

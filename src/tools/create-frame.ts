@@ -4,6 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, appendToParent, solidPaint, styleNotFoundHint, suggestStyleForColor, findVariableById } from "./helpers";
+import { looksInteractive } from "../utils/wcag";
 
 // ─── Schema ──────────────────────────────────────────────────────
 
@@ -180,6 +181,11 @@ async function createSingleFrame(p: any) {
   if (parent) {
     if (deferH) { try { frame.layoutSizingHorizontal = "FILL"; } catch {} }
     if (deferV) { try { frame.layoutSizingVertical = "FILL"; } catch {} }
+  }
+
+  // WCAG 2.5.8: target size recommendation for interactive elements
+  if (looksInteractive(frame) && (frame.width < 24 || frame.height < 24)) {
+    hints.push("WCAG 2.5.8: Interactive elements should be at least 24×24px for touch accessibility.");
   }
 
   const result: any = { id: frame.id };

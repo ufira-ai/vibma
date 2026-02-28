@@ -212,6 +212,11 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
 
       await appendToParent(textNode, parentId);
 
+      // WCAG recommendations
+      if (fontSize < 12) {
+        hints.push("Accessibility: Text below 12px may be difficult to read for many users.");
+      }
+
       if (textAutoResize) {
         textNode.textAutoResize = textAutoResize;
       } else if (layoutSizingHorizontal === "FILL" || layoutSizingHorizontal === "FIXED") {

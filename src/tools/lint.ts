@@ -4,19 +4,38 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler } from "./helpers";
+import { rgbaToHex } from "../utils/color";
+import {
+  srgbRelativeLuminance, contrastRatio, alphaComposite,
+  checkContrastPair, isLargeText, inferFontWeight, looksInteractive,
+  type SolidColor,
+} from "../utils/wcag";
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
+const WCAG_RULES = [
+  "wcag-contrast", "wcag-contrast-enhanced", "wcag-non-text-contrast",
+  "wcag-target-size", "wcag-text-size", "wcag-line-height",
+] as const;
+
 const lintRules = z.enum([
-  "no-autolayout",       // Frames with >1 child and no auto-layout
+  "no-autolayout",           // Frames with >1 child and no auto-layout
   "shape-instead-of-frame",  // Shapes used where FRAME should be
-  "hardcoded-color",     // Fills/strokes not using styles
-  "no-text-style",       // Text nodes without text style
-  "fixed-in-autolayout", // Fixed-size children in auto-layout parents
-  "default-name",        // Nodes with default/unnamed names
-  "empty-container",     // Frames/components with layout but no children
-  "stale-text-name",     // Text nodes where layer name diverges from content
-  "all",                 // Run all rules
+  "hardcoded-color",         // Fills/strokes not using styles
+  "no-text-style",           // Text nodes without text style
+  "fixed-in-autolayout",     // Fixed-size children in auto-layout parents
+  "default-name",            // Nodes with default/unnamed names
+  "empty-container",         // Frames/components with layout but no children
+  "stale-text-name",         // Text nodes where layer name diverges from content
+  // ── WCAG 2.2 rules ──
+  "wcag-contrast",           // 1.4.3 AA text contrast (4.5:1 / 3:1 large)
+  "wcag-contrast-enhanced",  // 1.4.6 AAA text contrast (7:1 / 4.5:1 large)
+  "wcag-non-text-contrast",  // 1.4.11 AA non-text contrast (3:1)
+  "wcag-target-size",        // 2.5.8 AA target size minimum (24x24px)
+  "wcag-text-size",          // Best practice: minimum readable text (12px)
+  "wcag-line-height",        // 1.4.12 AA text spacing (line height 1.5x)
+  "wcag",                    // Meta: run all wcag-* rules
+  "all",                     // Run all rules (including WCAG)
 ]);
 
 // ─── MCP Registration ────────────────────────────────────────────
@@ -27,7 +46,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     "Run design linter on a node tree. Returns issues grouped by category with affected node IDs and fix instructions. Lint child nodes individually for large trees.",
     {
       nodeId: z.string().optional().describe("Node ID to lint. Omit to lint current selection."),
-      rules: flexJson(z.array(lintRules)).optional().describe('Rules to run. Default: ["all"]. Options: no-autolayout, shape-instead-of-frame, hardcoded-color, no-text-style, fixed-in-autolayout, default-name, empty-container, stale-text-name, all'),
+      rules: flexJson(z.array(lintRules)).optional().describe('Rules to run. Default: ["all"]. Options: no-autolayout, shape-instead-of-frame, hardcoded-color, no-text-style, fixed-in-autolayout, default-name, empty-container, stale-text-name, all, wcag-contrast, wcag-contrast-enhanced, wcag-non-text-contrast, wcag-target-size, wcag-text-size, wcag-line-height, wcag'),
       maxDepth: z.coerce.number().optional().describe("Max depth to recurse (default: 10)"),
       maxFindings: z.coerce.number().optional().describe("Stop after N findings (default: 50)"),
     },
@@ -85,6 +104,11 @@ interface Issue {
 async function lintNodeHandler(params: any): Promise<any> {
   const ruleSet = new Set<string>(params?.rules || ["all"]);
   const runAll = ruleSet.has("all");
+  // Expand "wcag" meta-rule into individual wcag-* rules
+  if (ruleSet.has("wcag") || runAll) {
+    for (const r of WCAG_RULES) ruleSet.add(r);
+  }
+  const runWcag = WCAG_RULES.some(r => ruleSet.has(r));
   const maxDepth = params?.maxDepth ?? 10;
   const maxFindings = params?.maxFindings ?? 50;
 
@@ -113,7 +137,7 @@ async function lintNodeHandler(params: any): Promise<any> {
   }
 
   const issues: Issue[] = [];
-  const ctx: LintCtx = { runAll, ruleSet, maxDepth, maxFindings, localPaintStyleIds, localTextStyleIds, hasPaintStyles: localPaintStyleIds.size > 0, hasTextStyles: localTextStyleIds.size > 0 };
+  const ctx: LintCtx = { runAll, ruleSet, maxDepth, maxFindings, localPaintStyleIds, localTextStyleIds, hasPaintStyles: localPaintStyleIds.size > 0, hasTextStyles: localTextStyleIds.size > 0, runWcag };
 
   await walkNode(root, 0, issues, ctx);
 
@@ -158,6 +182,13 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "default-name": "Use set_node_properties to give descriptive names.",
   "empty-container": "These frames or components have auto-layout but no children. Delete them or add content.",
   "stale-text-name": "These text nodes have layer names that don't match their content. Use set_node_properties to rename, or leave if intentional.",
+  // ── WCAG fix instructions ──
+  "wcag-contrast": "Adjust text fill or background color to meet AA contrast (4.5:1 normal, 3:1 large text). Use set_fill_color or set_text_properties to change the foreground, or set_fill_color on the parent frame for the background.",
+  "wcag-contrast-enhanced": "Adjust colors to meet AAA contrast (7:1 normal, 4.5:1 large text) for enhanced accessibility.",
+  "wcag-non-text-contrast": "UI component fill needs at least 3:1 contrast against its parent background. Adjust the fill or background color using set_fill_color.",
+  "wcag-target-size": "Resize to at least 24×24px using resize_node, or add padding via update_frame. WCAG 2.5.8 requires 24px minimum for interactive targets.",
+  "wcag-text-size": "Increase font size to at least 12px using set_text_properties. Text below 12px is difficult to read for many users.",
+  "wcag-line-height": "Increase line height to at least 1.5× the font size using set_text_properties or set_node_properties. WCAG 1.4.12 requires 1.5× line spacing.",
 };
 
 interface LintCtx {
@@ -169,6 +200,7 @@ interface LintCtx {
   localTextStyleIds: Set<string>;
   hasPaintStyles: boolean;
   hasTextStyles: boolean;
+  runWcag: boolean;
 }
 
 async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: LintCtx) {
@@ -280,6 +312,196 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
     }
   }
 
+  // ── WCAG Rules ──────────────────────────────────────────────────
+
+  // ── Rule: wcag-contrast + wcag-contrast-enhanced ──
+  if (ctx.runWcag && (ctx.ruleSet.has("wcag-contrast") || ctx.ruleSet.has("wcag-contrast-enhanced"))) {
+    if (node.type === "TEXT") {
+      const textNode = node as any;
+      const fontSize = textNode.fontSize;
+      const fontName = textNode.fontName;
+
+      // Skip if fontSize or fontName is mixed (multiple styles in one text node)
+      if (fontSize !== figma.mixed && fontName !== figma.mixed) {
+        const fgColor = getTextFillColor(textNode);
+        if (fgColor) {
+          const bgColor = resolveBackgroundColor(node);
+          if (bgColor !== null) {
+            // Composite foreground over background accounting for opacity
+            const nodeOpacity = getEffectiveOpacity(node);
+            const effectiveAlpha = fgColor.a * nodeOpacity;
+            const composited = alphaComposite(
+              fgColor.r, fgColor.g, fgColor.b, effectiveAlpha,
+              bgColor.r, bgColor.g, bgColor.b,
+            );
+
+            const fontWeight = inferFontWeight((fontName as FontName).style);
+            const large = isLargeText(fontSize as number, fontWeight);
+            const result = checkContrastPair(composited, bgColor, large);
+
+            const fgHex = rgbaToHex({ ...fgColor, a: effectiveAlpha });
+            const bgHex = rgbaToHex({ r: bgColor.r, g: bgColor.g, b: bgColor.b, a: 1 });
+
+            // AA check
+            if (ctx.ruleSet.has("wcag-contrast") && !result.passesAA) {
+              issues.push({
+                rule: "wcag-contrast",
+                nodeId: node.id,
+                nodeName: node.name,
+                extra: {
+                  ratio: result.ratio,
+                  required: result.aaRequired,
+                  level: "AA",
+                  foreground: fgHex,
+                  background: bgHex,
+                  fontSize: fontSize as number,
+                  fontWeight,
+                  isLargeText: large,
+                },
+              });
+              if (issues.length >= ctx.maxFindings) return;
+            }
+
+            // AAA check (only if AA passes but AAA fails)
+            if (ctx.ruleSet.has("wcag-contrast-enhanced") && result.passesAA && !result.passesAAA) {
+              issues.push({
+                rule: "wcag-contrast-enhanced",
+                nodeId: node.id,
+                nodeName: node.name,
+                extra: {
+                  ratio: result.ratio,
+                  required: result.aaaRequired,
+                  level: "AAA",
+                  foreground: fgHex,
+                  background: bgHex,
+                  fontSize: fontSize as number,
+                  fontWeight,
+                  isLargeText: large,
+                },
+              });
+              if (issues.length >= ctx.maxFindings) return;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ── Rule: wcag-non-text-contrast ──
+  if (ctx.runWcag && ctx.ruleSet.has("wcag-non-text-contrast")) {
+    // Check frames, shapes, and components with fills against their parent's fill
+    if (node.type !== "TEXT" && node.type !== "PAGE" && "fills" in node) {
+      const nodeFill = getNodeFillColor(node);
+      if (nodeFill && node.parent) {
+        const parentFill = resolveBackgroundColor(node);
+        if (parentFill !== null) {
+          const result = checkContrastPair(nodeFill, parentFill);
+          if (result.ratio < 3.0) {
+            const nodeHex = rgbaToHex({ ...nodeFill, a: 1 });
+            const parentHex = rgbaToHex({ r: parentFill.r, g: parentFill.g, b: parentFill.b, a: 1 });
+            issues.push({
+              rule: "wcag-non-text-contrast",
+              nodeId: node.id,
+              nodeName: node.name,
+              extra: {
+                ratio: result.ratio,
+                required: 3.0,
+                level: "AA",
+                fill: nodeHex,
+                background: parentHex,
+              },
+            });
+            if (issues.length >= ctx.maxFindings) return;
+          }
+        }
+      }
+    }
+  }
+
+  // ── Rule: wcag-target-size ──
+  if (ctx.runWcag && ctx.ruleSet.has("wcag-target-size")) {
+    if (looksInteractive(node) && "width" in node && "height" in node) {
+      const w = (node as any).width as number;
+      const h = (node as any).height as number;
+      const MIN_TARGET = 24;
+
+      if (w < MIN_TARGET || h < MIN_TARGET) {
+        issues.push({
+          rule: "wcag-target-size",
+          nodeId: node.id,
+          nodeName: node.name,
+          extra: {
+            width: Math.round(w * 100) / 100,
+            height: Math.round(h * 100) / 100,
+            minimumRequired: MIN_TARGET,
+            failingDimension: w < MIN_TARGET && h < MIN_TARGET ? "both"
+              : w < MIN_TARGET ? "width" : "height",
+          },
+        });
+        if (issues.length >= ctx.maxFindings) return;
+      }
+    }
+  }
+
+  // ── Rule: wcag-text-size ──
+  if (ctx.runWcag && ctx.ruleSet.has("wcag-text-size")) {
+    if (node.type === "TEXT") {
+      const fontSize = (node as any).fontSize;
+      if (fontSize !== figma.mixed && typeof fontSize === "number" && fontSize < 12) {
+        issues.push({
+          rule: "wcag-text-size",
+          nodeId: node.id,
+          nodeName: node.name,
+          extra: { fontSize, minimumRecommended: 12 },
+        });
+        if (issues.length >= ctx.maxFindings) return;
+      }
+    }
+  }
+
+  // ── Rule: wcag-line-height ──
+  if (ctx.runWcag && ctx.ruleSet.has("wcag-line-height")) {
+    if (node.type === "TEXT") {
+      const textNode = node as any;
+      const fontSize = textNode.fontSize;
+      const lineHeight = textNode.lineHeight;
+
+      if (fontSize !== figma.mixed && lineHeight !== figma.mixed) {
+        const fs = fontSize as number;
+        const lh = lineHeight as { unit: string; value: number };
+        let lineHeightPx: number | null = null;
+
+        if (lh.unit === "PIXELS") {
+          lineHeightPx = lh.value;
+        } else if (lh.unit === "PERCENT") {
+          lineHeightPx = (lh.value / 100) * fs;
+        }
+        // Skip "AUTO" — platform default, flagging it would be too noisy
+
+        if (lineHeightPx !== null) {
+          const ratio = lineHeightPx / fs;
+          const REQUIRED_RATIO = 1.5;
+
+          if (ratio < REQUIRED_RATIO) {
+            issues.push({
+              rule: "wcag-line-height",
+              nodeId: node.id,
+              nodeName: node.name,
+              extra: {
+                lineHeightPx: Math.round(lineHeightPx * 100) / 100,
+                fontSize: fs,
+                ratio: Math.round(ratio * 100) / 100,
+                requiredRatio: REQUIRED_RATIO,
+                recommendedLineHeight: Math.ceil(fs * REQUIRED_RATIO),
+              },
+            });
+            if (issues.length >= ctx.maxFindings) return;
+          }
+        }
+      }
+    }
+  }
+
   // Recurse into children
   if ("children" in node) {
     for (const child of (node as any).children) {
@@ -318,6 +540,112 @@ function detectLayoutDirection(frame: FrameNode): "VERTICAL" | "HORIZONTAL" {
     yVariance += Math.abs(children[i].y - children[i - 1].y);
   }
   return yVariance >= xVariance ? "VERTICAL" : "HORIZONTAL";
+}
+
+// ── WCAG Figma Helpers ──────────────────────────────────────────
+
+/**
+ * Get the effective foreground solid color of a text node.
+ * Returns null if fills are mixed, empty, non-solid, or invisible.
+ */
+function getTextFillColor(node: any): SolidColor | null {
+  const fills = node.fills;
+  if (fills === figma.mixed) return null;
+  if (!Array.isArray(fills) || fills.length === 0) return null;
+
+  // Use the last visible SOLID fill (topmost in Figma's paint stack)
+  for (let i = fills.length - 1; i >= 0; i--) {
+    const fill = fills[i];
+    if (fill.visible === false) continue;
+    if (fill.type !== "SOLID") return null; // gradient/image — cannot check
+    return { r: fill.color.r, g: fill.color.g, b: fill.color.b, a: fill.opacity ?? 1 };
+  }
+  return null;
+}
+
+/**
+ * Get the first visible solid fill color from any node.
+ * Used for non-text contrast checks.
+ */
+function getNodeFillColor(node: BaseNode): { r: number; g: number; b: number } | null {
+  if (!("fills" in node)) return null;
+  const fills = (node as any).fills;
+  if (fills === figma.mixed || !Array.isArray(fills)) return null;
+
+  for (let i = fills.length - 1; i >= 0; i--) {
+    const fill = fills[i];
+    if (fill.visible === false) continue;
+    if (fill.type !== "SOLID") return null;
+    return { r: fill.color.r, g: fill.color.g, b: fill.color.b };
+  }
+  return null;
+}
+
+/**
+ * Resolve the effective background color behind a node by walking up
+ * the ancestor chain and compositing solid fills.
+ * Returns null if any ancestor has a gradient/image fill (cannot compute).
+ */
+function resolveBackgroundColor(node: BaseNode): { r: number; g: number; b: number } | null {
+  // Start with white (WCAG default assumption for unknown background)
+  let bgR = 1, bgG = 1, bgB = 1;
+
+  // Collect ancestors from parent to root, then process root-to-leaf
+  const ancestors: BaseNode[] = [];
+  let current = node.parent;
+  while (current) {
+    ancestors.push(current);
+    current = current.parent;
+  }
+  ancestors.reverse();
+
+  for (const ancestor of ancestors) {
+    if (!("fills" in ancestor)) continue;
+    const fills = (ancestor as any).fills;
+    if (fills === figma.mixed || !Array.isArray(fills)) continue;
+
+    for (const fill of fills) {
+      if (fill.visible === false) continue;
+
+      if (fill.type === "SOLID") {
+        const fillOpacity = fill.opacity ?? 1;
+        const nodeOpacity = ("opacity" in ancestor) ? ((ancestor as any).opacity ?? 1) : 1;
+        const effectiveAlpha = fillOpacity * nodeOpacity;
+
+        if (effectiveAlpha >= 0.999) {
+          bgR = fill.color.r;
+          bgG = fill.color.g;
+          bgB = fill.color.b;
+        } else {
+          const c = alphaComposite(fill.color.r, fill.color.g, fill.color.b, effectiveAlpha, bgR, bgG, bgB);
+          bgR = c.r;
+          bgG = c.g;
+          bgB = c.b;
+        }
+      } else if (fill.type !== "SOLID") {
+        // Gradient, image, video — cannot compute contrast reliably
+        return null;
+      }
+    }
+  }
+
+  return { r: bgR, g: bgG, b: bgB };
+}
+
+/**
+ * Walk from a node up to root, multiplying opacity at each level.
+ * Figma's opacity is per-node and compounds visually.
+ */
+function getEffectiveOpacity(node: BaseNode): number {
+  let opacity = 1;
+  let current: BaseNode | null = node;
+  while (current) {
+    if ("opacity" in current) {
+      opacity *= (current as any).opacity ?? 1;
+    }
+    current = current.parent;
+  }
+  return opacity;
 }
 
 // ── Auto-fix handlers ──
