@@ -98,13 +98,41 @@ If using a non-default port, pass `--port=`:
 3. In your AI tool, call `join_channel` with the same channel name (defaults to `vibma`)
 4. Call `ping` — you should get back `pong` with your document name
 
+### Channel rules
+
+Each channel enforces **exactly one Figma plugin and one MCP server**. If a second plugin (or second MCP) tries to join a channel that's already occupied, it will be rejected with a clear error message. To connect a different plugin, disconnect the first one or use a different channel name.
+
+### Debugging connections
+
+Use the relay's built-in debug endpoint to see who's connected:
+
+```bash
+curl http://localhost:3055/channels
+```
+
+Returns:
+```json
+{
+  "vibma": {
+    "mcp": { "connected": true, "version": "0.1.1", "joinedAt": "2026-02-28T12:00:00.000Z" },
+    "plugin": { "connected": true, "version": "0.1.1", "joinedAt": "2026-02-28T12:00:01.000Z" }
+  }
+}
+```
+
+If using Claude Code, the `channel_info` MCP tool returns the same data without leaving your AI tool.
+
 ## Troubleshooting
 
 **Plugin won't connect to WebSocket**: Make sure the relay is running. The plugin connects to `ws://localhost:3055` by default.
 
+**"Connection rejected" in plugin UI**: Another plugin is already connected to that channel. Disconnect it first or use a different channel name. Run `curl http://localhost:3055/channels` to see what's connected.
+
 **MCP shows disconnected**: Restart your AI tool after changing MCP config. Stdio-based MCP servers can't hot-reload.
 
 **Port already in use**: See the agent instructions below for automated port resolution, or manually kill the process (`lsof -ti:3055 | xargs kill`).
+
+**Version mismatch warning**: The plugin and MCP server are running different versions. Run `npm run build` and restart both to resolve.
 
 ---
 
@@ -154,6 +182,8 @@ If the plugin shows **Disconnected** on port 3055, try the following before aski
 1. Check the relay is running: `lsof -ti:3055` — if no output, the relay isn't started.
 2. Restart the relay: `npm run socket`
 3. Ask the user to close and reopen the Figma plugin.
+
+If `join_channel` fails with a `ROLE_OCCUPIED` error, another MCP server is already connected to that channel. Use `channel_info` (or `curl http://localhost:3055/channels`) to inspect who's connected. The user needs to disconnect the other MCP client or use a different channel name.
 
 If the issue persists after these steps, direct the user to the [Vibma Discord](https://discord.gg/4XTedZdwV6) for help.
 
