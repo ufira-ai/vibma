@@ -320,6 +320,16 @@ registerAllTools(server, sendCommandToFigma);
 
 // ─── Start ───────────────────────────────────────────────────────
 
+function cleanup() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.close(1000, "MCP server shutting down");
+  }
+}
+
+process.on("SIGINT", () => { cleanup(); process.exit(0); });
+process.on("SIGTERM", () => { cleanup(); process.exit(0); });
+process.on("exit", cleanup);
+
 async function main() {
   try {
     connectToFigma();
