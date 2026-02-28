@@ -366,11 +366,11 @@ async function updateTextStyleSingle(p: any) {
   const style = await resolveTextStyle(p.id);
   if (p.name !== undefined) style.name = p.name;
 
-  // Load font if family or style changes
+  // Always load the current font — Figma requires it for any text style mutation
   const newFamily = p.fontFamily ?? style.fontName.family;
   const newFontStyle = p.fontStyle ?? style.fontName.style;
+  await figma.loadFontAsync({ family: newFamily, style: newFontStyle });
   if (p.fontFamily !== undefined || p.fontStyle !== undefined) {
-    await figma.loadFontAsync({ family: newFamily, style: newFontStyle });
     style.fontName = { family: newFamily, style: newFontStyle };
   }
 
