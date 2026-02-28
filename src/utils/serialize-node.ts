@@ -5,14 +5,22 @@ import { rgbaToHex } from "./color";
  * This replaces the exportAsync({ format: "JSON_REST_V1" }) + filterFigmaNode
  * approach, which returned REST API IDs that could differ from plugin node.id.
  *
- * @param node  - A Figma plugin BaseNode
- * @param depth - Child recursion depth. -1 = unlimited, 0 = stubs only.
+ * @param node      - A Figma plugin BaseNode
+ * @param depth     - Child recursion depth. -1 = unlimited, 0 = stubs only.
+ * @param budget    - Shared counter: { remaining: N }. Stops recursing when 0.
  */
-export function serializeNode(
+export const DEFAULT_NODE_BUDGET = 200;
+
+export async function serializeNode(
   node: BaseNode,
   depth: number = -1,
   currentDepth: number = 0,
-): any {
+  budget: { remaining: number } = { remaining: DEFAULT_NODE_BUDGET },
+): Promise<any> {
+  if (budget.remaining <= 0) {
+    return { id: node.id, name: node.name, type: node.type, _truncated: true };
+  }
+  budget.remaining--;
   // VECTORs: always a stub — no useful extractable properties
   if (node.type === "VECTOR") {
     return { id: node.id, name: node.name, type: node.type };
@@ -75,9 +83,14 @@ export function serializeNode(
   // ── Instance → source component ───────────────────────────────
   if (node.type === "INSTANCE") {
     const inst = node as InstanceNode;
-    if (inst.mainComponent) {
-      out.componentId = inst.mainComponent.id;
-      out.componentName = inst.mainComponent.name;
+    try {
+      const main = await inst.getMainComponentAsync();
+      if (main) {
+        out.componentId = main.id;
+        out.componentName = main.name;
+      }
+    } catch {
+      // mainComponent unavailable (e.g. remote library not loaded)
     }
   }
 
@@ -155,15 +168,19 @@ export function serializeNode(
   // ── Children ──────────────────────────────────────────────────
   if ("children" in node) {
     const children = (node as any).children as readonly BaseNode[];
-    if (depth >= 0 && currentDepth >= depth) {
-      // Stubs only
+    if ((depth >= 0 && currentDepth >= depth) || budget.remaining <= 0) {
+      // Stubs only (depth limit reached or budget exhausted)
       out.children = children.map((c: BaseNode) => ({
         id: c.id, name: c.name, type: c.type,
+        ...(budget.remaining <= 0 ? { _truncated: true } : {}),
       }));
     } else {
-      out.children = children.map((c: BaseNode) =>
-        serializeNode(c, depth, currentDepth + 1),
-      );
+      // Sequential to keep budget counter deterministic (shared mutable ref)
+      const serialized: any[] = [];
+      for (const c of children) {
+        serialized.push(await serializeNode(c, depth, currentDepth + 1, budget));
+      }
+      out.children = serialized;
     }
   }
 

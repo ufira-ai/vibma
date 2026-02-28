@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { flexJson, flexBool } from "../utils/coercion";
-import { serializeNode } from "../utils/serialize-node";
+import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 
@@ -79,7 +79,7 @@ function pickFields(node: any, keep: Set<string>): any {
   if (!node || typeof node !== "object") return node;
   const out: any = {};
   for (const key of Object.keys(node)) {
-    if (keep.has(key)) {
+    if (keep.has(key) || key.startsWith("_")) {
       out[key] = key === "children" && Array.isArray(node.children)
         ? node.children.map((c: any) => pickFields(c, keep))
         : node[key];
@@ -98,20 +98,30 @@ async function getNodeInfo(params: any) {
     ? new Set<string>([...fields, "id", "name", "type", "children", "parentId", "parentName", "parentType"])
     : null;
 
-  const results = await Promise.all(
-    nodeIds.map(async (nodeId: string) => {
-      const node = await figma.getNodeByIdAsync(nodeId);
-      if (!node) return { nodeId, error: `Node not found: ${nodeId}` };
+  // Shared budget across all requested nodes — sequential to keep counter deterministic
+  const budget = { remaining: DEFAULT_NODE_BUDGET };
+  const results: any[] = [];
 
-      let serialized = serializeNode(node, depth !== undefined ? depth : -1);
+  for (const nodeId of nodeIds) {
+    const node = await figma.getNodeByIdAsync(nodeId);
+    if (!node) { results.push({ nodeId, error: `Node not found: ${nodeId}` }); continue; }
 
-      if (keep && serialized) serialized = pickFields(serialized, keep);
+    let serialized = await serializeNode(node, depth !== undefined ? depth : -1, 0, budget);
 
-      return serialized;
-    })
-  );
+    if (keep && serialized) serialized = pickFields(serialized, keep);
 
-  return { results };
+    results.push(serialized);
+  }
+
+  const out: any = { results };
+
+  if (budget.remaining <= 0) {
+    out._truncated = true;
+    out._notice = "Result was truncated (node budget exceeded). Nodes with _truncated: true are stubs. "
+      + "To inspect them, call get_node_info with their IDs directly, or use a shallower depth.";
+  }
+
+  return out;
 }
 
 async function getNodeCss(params: any) {

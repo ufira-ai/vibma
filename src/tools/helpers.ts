@@ -1,16 +1,23 @@
-import { serializeNode } from "../utils/serialize-node";
+import { serializeNode, DEFAULT_NODE_BUDGET } from "../utils/serialize-node";
 
 // ─── Figma Handler Utilities ────────────────────────────────────
 // Shared helpers for plugin-side (Figma) handler functions.
 
 /**
  * Snapshot a node using plugin API serialization.
- * Returns null if node not found.
+ * Returns null if node not found. Returns { _truncated, _notice } metadata when budget exceeded.
  */
 export async function nodeSnapshot(id: string, depth: number): Promise<any> {
   const node = await figma.getNodeByIdAsync(id);
   if (!node) return null;
-  return serializeNode(node, depth);
+  const budget = { remaining: DEFAULT_NODE_BUDGET };
+  const result = await serializeNode(node, depth, 0, budget);
+  if (budget.remaining <= 0) {
+    result._truncated = true;
+    result._notice = "Snapshot truncated (node budget exceeded). Nodes with _truncated: true are stubs. "
+      + "Call get_node_info with their IDs to inspect, or use a shallower depth.";
+  }
+  return result;
 }
 
 /**
