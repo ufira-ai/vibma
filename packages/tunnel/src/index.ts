@@ -24,7 +24,6 @@ const httpServer = createServer((req, res) => {
 
 const wss = new WebSocketServer({ server: httpServer });
 
-// Bug 2 fix: Ping/pong keepalive to prevent idle connection drops (especially WSL2)
 const HEARTBEAT_INTERVAL = 15_000;
 const aliveClients = new WeakSet<WebSocket>();
 
@@ -105,7 +104,6 @@ wss.on("connection", (ws: WebSocket) => {
         return;
       }
 
-      // Bug 3 fix: Route progress_update the same as message
       if (data.type === "message" || data.type === "progress_update") {
         const channelName = data.channel;
         if (!channelName || typeof channelName !== "string") {
@@ -125,7 +123,6 @@ wss.on("connection", (ws: WebSocket) => {
           return;
         }
 
-        // Bug 1 fix: Only broadcast to other clients, not the sender
         channelClients.forEach((client) => {
           if (client !== ws && client.readyState === WebSocket.OPEN) {
             console.log("Broadcasting message to client:", data.message);
@@ -151,7 +148,6 @@ wss.on("connection", (ws: WebSocket) => {
       if (clients.has(ws)) {
         clients.delete(ws);
 
-        // Bug 4 fix: Clean up empty channels
         if (clients.size === 0) {
           channels.delete(channelName);
           return;
