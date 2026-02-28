@@ -35,6 +35,30 @@ const effectStyleItem = z.object({
   effects: flexJson(z.array(S.effectEntry)).describe("Array of effects"),
 });
 
+const updatePaintStyleItem = z.object({
+  id: z.string().describe("Style ID or name (case-insensitive match)"),
+  name: z.string().optional().describe("New name"),
+  color: flexJson(S.colorRgba).optional().describe('New color. Hex "#FF0000" or {r,g,b,a?} 0-1.'),
+});
+
+const updateTextStyleItem = z.object({
+  id: z.string().describe("Style ID or name (case-insensitive match)"),
+  name: z.string().optional().describe("New name"),
+  fontFamily: z.string().optional().describe("Font family"),
+  fontStyle: z.string().optional().describe("Font style (e.g. Regular, Bold)"),
+  fontSize: z.coerce.number().optional().describe("Font size"),
+  lineHeight: flexNum(z.union([
+    z.number(),
+    z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT", "AUTO"]) }),
+  ])).optional().describe("Line height — number (px) or {value, unit}. Default: auto."),
+  letterSpacing: flexNum(z.union([
+    z.number(),
+    z.object({ value: z.coerce.number(), unit: z.enum(["PIXELS", "PERCENT"]) }),
+  ])).optional().describe("Letter spacing — number (px) or {value, unit}. Default: 0."),
+  textCase: z.enum(["ORIGINAL", "UPPER", "LOWER", "TITLE"]).optional(),
+  textDecoration: z.enum(["NONE", "UNDERLINE", "STRIKETHROUGH"]).optional(),
+});
+
 const applyStyleItem = z.object({
   nodeId: S.nodeId,
   styleId: z.string().optional().describe("Style ID. Provide either styleId or styleName."),
@@ -112,6 +136,26 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     async (params: any) => {
       try { return mcpJson(await sendCommand("apply_style_to_node", params)); }
       catch (e) { return mcpError("Error applying style", e); }
+    }
+  );
+
+  server.tool(
+    "update_paint_style",
+    "Update paint style color/name by ID or name. Changes propagate to all nodes using the style. Batch: pass multiple items.",
+    { items: flexJson(z.array(updatePaintStyleItem)).describe("Array of {id, name?, color?}") },
+    async (params: any) => {
+      try { return mcpJson(await sendCommand("update_paint_style", params)); }
+      catch (e) { return mcpError("Error updating paint style", e); }
+    }
+  );
+
+  server.tool(
+    "update_text_style",
+    "Update text style properties by ID or name. Changes propagate to all nodes using the style. Batch: pass multiple items.",
+    { items: flexJson(z.array(updateTextStyleItem)).describe("Array of {id, name?, fontSize?, fontFamily?, ...}") },
+    async (params: any) => {
+      try { return mcpJson(await sendCommand("update_text_style", params)); }
+      catch (e) { return mcpError("Error updating text style", e); }
     }
   );
 }
@@ -280,6 +324,90 @@ async function applyStyleSingle(p: any) {
   return result;
 }
 
+// ─── Style Resolution Helpers ────────────────────────────────────
+
+async function resolvePaintStyle(idOrName: string): Promise<PaintStyle> {
+  // Try by ID first
+  const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
+  if (byId?.type === "PAINT") return byId as PaintStyle;
+  // Fallback to name search
+  const all = await figma.getLocalPaintStylesAsync();
+  const exact = all.find(s => s.name === idOrName);
+  if (exact) return exact;
+  const fuzzy = all.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
+  if (fuzzy) return fuzzy;
+  throw new Error(`Paint style not found: '${idOrName}'`);
+}
+
+async function resolveTextStyle(idOrName: string): Promise<TextStyle> {
+  const byId = await figma.getStyleByIdAsync(ensureStyleId(idOrName));
+  if (byId?.type === "TEXT") return byId as TextStyle;
+  const all = await figma.getLocalTextStylesAsync();
+  const exact = all.find(s => s.name === idOrName);
+  if (exact) return exact;
+  const fuzzy = all.find(s => s.name.toLowerCase().includes(idOrName.toLowerCase()));
+  if (fuzzy) return fuzzy;
+  throw new Error(`Text style not found: '${idOrName}'`);
+}
+
+// ─── Update Handlers ────────────────────────────────────────────
+
+async function updatePaintStyleSingle(p: any) {
+  const style = await resolvePaintStyle(p.id);
+  if (p.name !== undefined) style.name = p.name;
+  if (p.color !== undefined) {
+    const { r, g, b, a = 1 } = p.color;
+    style.paints = [{ type: "SOLID", color: { r, g, b }, opacity: a }];
+  }
+  return { id: style.id };
+}
+
+async function updateTextStyleSingle(p: any) {
+  const style = await resolveTextStyle(p.id);
+  if (p.name !== undefined) style.name = p.name;
+
+  // Load font if family or style changes
+  const newFamily = p.fontFamily ?? style.fontName.family;
+  const newFontStyle = p.fontStyle ?? style.fontName.style;
+  if (p.fontFamily !== undefined || p.fontStyle !== undefined) {
+    await figma.loadFontAsync({ family: newFamily, style: newFontStyle });
+    style.fontName = { family: newFamily, style: newFontStyle };
+  }
+
+  if (p.fontSize !== undefined) style.fontSize = p.fontSize;
+  if (p.lineHeight !== undefined) {
+    if (typeof p.lineHeight === "number") style.lineHeight = { value: p.lineHeight, unit: "PIXELS" };
+    else if (p.lineHeight.unit === "AUTO") style.lineHeight = { unit: "AUTO" };
+    else style.lineHeight = { value: p.lineHeight.value, unit: p.lineHeight.unit };
+  }
+  if (p.letterSpacing !== undefined) {
+    if (typeof p.letterSpacing === "number") style.letterSpacing = { value: p.letterSpacing, unit: "PIXELS" };
+    else style.letterSpacing = { value: p.letterSpacing.value, unit: p.letterSpacing.unit };
+  }
+  if (p.textCase !== undefined) style.textCase = p.textCase;
+  if (p.textDecoration !== undefined) style.textDecoration = p.textDecoration;
+
+  // WCAG recommendations
+  const result: any = { id: style.id };
+  const hints: string[] = [];
+  const effectiveFontSize = p.fontSize ?? style.fontSize;
+  if (effectiveFontSize < 12) {
+    hints.push("WCAG: Min 12px text recommended.");
+  }
+  const lh = p.lineHeight !== undefined ? p.lineHeight : style.lineHeight;
+  if (lh && lh !== "AUTO" && (lh as any).unit !== "AUTO") {
+    let lhPx: number | null = null;
+    if (typeof lh === "number") lhPx = lh;
+    else if (lh.unit === "PIXELS") lhPx = lh.value;
+    else if (lh.unit === "PERCENT") lhPx = (lh.value / 100) * effectiveFontSize;
+    if (lhPx !== null && lhPx / effectiveFontSize < 1.5) {
+      hints.push(`WCAG: Line height ${Math.ceil(effectiveFontSize * 1.5)}px (1.5×) recommended.`);
+    }
+  }
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
+}
+
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   get_styles: getStylesFigma,
   get_style_by_id: getStyleByIdFigma,
@@ -288,4 +416,6 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   create_text_style: (p) => batchHandler(p, createTextStyleSingle),
   create_effect_style: (p) => batchHandler(p, createEffectStyleSingle),
   apply_style_to_node: (p) => batchHandler(p, applyStyleSingle),
+  update_paint_style: (p) => batchHandler(p, updatePaintStyleSingle),
+  update_text_style: (p) => batchHandler(p, updateTextStyleSingle),
 };
