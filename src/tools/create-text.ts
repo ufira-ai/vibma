@@ -214,7 +214,7 @@ async function createTextBatch(params: any): Promise<{ results: any[] }> {
 
       // WCAG recommendations
       if (fontSize < 12) {
-        hints.push("Accessibility: Text below 12px may be difficult to read for many users.");
+        hints.push("WCAG: Min 12px text recommended.");
       }
 
       if (textAutoResize) {

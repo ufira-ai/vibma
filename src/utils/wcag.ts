@@ -137,7 +137,7 @@ export function formatContrastFailures(
     const result = checkContrastPair(newColor, existing.color);
     if (!result.passesAA) {
       const newHex = rgbaToHex({ ...newColor, a: 1 });
-      failures.push(`Low contrast (${result.ratio}:1) against '${existing.name}'. AA requires ${result.aaRequired}:1 for normal text.`);
+      failures.push(`${result.ratio}:1 vs '${existing.name}' (need ${result.aaRequired}:1)`);
     }
   }
 
@@ -145,9 +145,9 @@ export function formatContrastFailures(
   const whiteResult = checkContrastPair(newColor, { r: 1, g: 1, b: 1 });
   const blackResult = checkContrastPair(newColor, { r: 0, g: 0, b: 0 });
   if (whiteResult.ratio < 3 && blackResult.ratio < 3) {
-    failures.push(`Fails 3:1 non-text contrast against both white (${whiteResult.ratio}:1) and black (${blackResult.ratio}:1).`);
+    failures.push(`<3:1 vs both white & black`);
   }
 
   if (failures.length === 0) return null;
-  return "WCAG: " + failures.join(" ");
+  return "WCAG contrast: " + failures.join("; ");
 }

@@ -185,7 +185,7 @@ async function createSingleFrame(p: any) {
 
   // WCAG 2.5.8: target size recommendation for interactive elements
   if (looksInteractive(frame) && (frame.width < 24 || frame.height < 24)) {
-    hints.push("WCAG 2.5.8: Interactive elements should be at least 24×24px for touch accessibility.");
+    hints.push("WCAG: Min 24×24px for touch targets.");
   }
 
   const result: any = { id: frame.id };

@@ -220,7 +220,7 @@ async function createTextStyleSingle(p: any) {
   const result: any = { id: style.id };
   const hints: string[] = [];
   if (p.fontSize < 12) {
-    hints.push("Accessibility: Text style below 12px may be difficult to read for many users.");
+    hints.push("WCAG: Min 12px text recommended.");
   }
   if (p.lineHeight !== undefined && p.lineHeight !== "AUTO") {
     let lhPx: number | null = null;
@@ -228,7 +228,7 @@ async function createTextStyleSingle(p: any) {
     else if (p.lineHeight.unit === "PIXELS") lhPx = p.lineHeight.value;
     else if (p.lineHeight.unit === "PERCENT") lhPx = (p.lineHeight.value / 100) * p.fontSize;
     if (lhPx !== null && lhPx / p.fontSize < 1.5) {
-      hints.push(`WCAG 1.4.12: Line height of ${Math.ceil(p.fontSize * 1.5)}px (1.5\u00d7 font size) recommended for readability.`);
+      hints.push(`WCAG: Line height ${Math.ceil(p.fontSize * 1.5)}px (1.5×) recommended.`);
     }
   }
   if (hints.length > 0) result.warning = hints.join(" ");

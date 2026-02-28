@@ -183,12 +183,12 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "empty-container": "These frames or components have auto-layout but no children. Delete them or add content.",
   "stale-text-name": "These text nodes have layer names that don't match their content. Use set_node_properties to rename, or leave if intentional.",
   // ── WCAG fix instructions ──
-  "wcag-contrast": "Adjust text fill or background color to meet AA contrast (4.5:1 normal, 3:1 large text). Use set_fill_color or set_text_properties to change the foreground, or set_fill_color on the parent frame for the background.",
-  "wcag-contrast-enhanced": "Adjust colors to meet AAA contrast (7:1 normal, 4.5:1 large text) for enhanced accessibility.",
-  "wcag-non-text-contrast": "UI component fill needs at least 3:1 contrast against its parent background. Adjust the fill or background color using set_fill_color.",
-  "wcag-target-size": "Resize to at least 24×24px using resize_node, or add padding via update_frame. WCAG 2.5.8 requires 24px minimum for interactive targets.",
-  "wcag-text-size": "Increase font size to at least 12px using set_text_properties. Text below 12px is difficult to read for many users.",
-  "wcag-line-height": "Increase line height to at least 1.5× the font size using set_text_properties or set_node_properties. WCAG 1.4.12 requires 1.5× line spacing.",
+  "wcag-contrast": "Adjust fill or background to meet AA (4.5:1, 3:1 large text).",
+  "wcag-contrast-enhanced": "Adjust to meet AAA (7:1, 4.5:1 large text).",
+  "wcag-non-text-contrast": "Need 3:1 against parent background. Adjust via set_fill_color.",
+  "wcag-target-size": "Resize to 24×24px min via resize_node or add padding.",
+  "wcag-text-size": "Increase to 12px min via set_text_properties.",
+  "wcag-line-height": "Increase line height to 1.5× font size.",
 };
 
 interface LintCtx {
