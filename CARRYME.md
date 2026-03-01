@@ -142,3 +142,12 @@ If any tool times out after a successful `join_channel`, the Figma plugin is not
 - The **port** matches what MCP is using
 - The **channel name** matches what MCP joined
 - The plugin status shows **Connected**
+
+### Version mismatch
+
+If `join_channel` returns a version mismatch warning, the Figma plugin and MCP server are running different versions. Offer to help the user update:
+
+- **MCP server**: Update the MCP config args to use `@latest` (e.g. `"args": ["-y", "@ufira/vibma@latest"]`), or clear the npx cache with `npx clear-npx-cache` then re-run.
+- **Figma plugin**: Download the latest `vibma-plugin.zip` from [GitHub Releases](https://github.com/ufira-ai/vibma/releases), unzip, and re-import the `manifest.json` in Figma.
+
+The tunnel relay rarely needs updating — it is a simple message router and stays backward compatible.

@@ -191,3 +191,15 @@ If any tool times out after a successful `join_channel`, the Figma plugin is not
 - The **port** matches what MCP is using
 - The **channel name** matches what MCP joined
 - The plugin status shows **Connected**
+
+### Version mismatch
+
+If `join_channel` returns a version mismatch warning, the Figma plugin and MCP server are running different versions. Offer to help the user update:
+
+1. Pull the latest changes: `git pull origin main`
+2. Rebuild: `npm install && npm run build`
+3. Restart the relay: kill the old process (`lsof -ti:3055 | xargs kill`), then `npm run socket`
+4. Ask the user to close and reopen the Figma plugin (it auto-reloads from `plugin/`)
+5. Reconnect: `join_channel` → `ping`
+
+All three components (plugin, relay, MCP server) are built from the same source and should always be on the same version.

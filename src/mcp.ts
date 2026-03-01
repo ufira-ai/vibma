@@ -70,6 +70,7 @@ const pendingRequests = new Map<
 let currentChannel: string | null = null;
 let activePort: number = parseInt(process.env.VIBMA_PORT || "3055");
 let rejected = false; // Suppress auto-reconnect after ROLE_OCCUPIED rejection
+let versionWarning: string | null = null;
 
 // CLI args
 const args = process.argv.slice(2);
@@ -109,6 +110,16 @@ function connectToFigma(port: number = activePort) {
           clearTimeout(req.timeout);
           req.resolve({ status: "already_joined", channel: json.channel });
           pendingRequests.delete(json.id);
+        }
+        return;
+      }
+
+      // Handle system messages with a code (version mismatch, peer join/leave)
+      // Note: join-success also uses type=system but carries message.id + message.result — let those fall through
+      if (json.type === "system" && json.code) {
+        if (json.code === "VERSION_MISMATCH") {
+          versionWarning = json.message;
+          logger.warn(`Version mismatch: ${json.message}`);
         }
         return;
       }
@@ -197,6 +208,7 @@ function connectToFigma(port: number = activePort) {
 
 async function joinChannel(channelName: string): Promise<void> {
   rejected = false; // Reset rejection state on explicit join attempt
+  versionWarning = null;
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     connectToFigma();
     // Wait briefly for connection
@@ -286,8 +298,12 @@ server.tool(
   async ({ channel }: any) => {
     try {
       await joinChannel(channel);
+      // Brief wait for VERSION_MISMATCH system message from relay
+      await new Promise((r) => setTimeout(r, 200));
+      let msg = `Joined channel "${channel}" on port ${activePort}. Call \`ping\` now to verify the Figma plugin is connected.`;
+      if (versionWarning) msg += `\n\n⚠️ ${versionWarning}\nSee "Version mismatch" in CARRYME.md or DRAGME.md for update steps.`;
       return {
-        content: [{ type: "text", text: `Joined channel "${channel}" on port ${activePort}. Call \`ping\` now to verify the Figma plugin is connected.` }],
+        content: [{ type: "text", text: msg }],
       };
     } catch (error) {
       return {

@@ -218,13 +218,22 @@ wss.on("connection", (ws: WebSocket) => {
             peer: { role: otherRole, version: other.version, name: other.name },
           }));
 
-          // Version mismatch warning
+          // Version mismatch warning — tell each side who needs to update
           if (version && other.version && version !== other.version) {
-            const warning = `Version mismatch: ${role}=${version}, ${otherRole}=${other.version}. Update both for best results.`;
-            const msg = JSON.stringify({ type: "system", code: "VERSION_MISMATCH", message: warning, channel: channelName });
-            ws.send(msg);
-            other.ws.send(msg);
-            console.log(`[WARN] ${warning}`);
+            const newer = version > other.version ? role : otherRole;
+            const newerVer = newer === role ? version : other.version;
+            const olderVer = newer === role ? other.version : version;
+
+            const pluginMsg = newer === "plugin"
+              ? `You are on v${version}. MCP is on v${other.version} — ask the user to update their MCP server with: npx @ufira/vibma@latest`
+              : `Plugin is on v${olderVer}, but MCP is on v${newerVer}. Update the Figma plugin to v${newerVer}.`;
+            const mcpMsg = newer === "mcp"
+              ? `MCP v${newerVer} connected. Plugin is on v${olderVer} — ask the user to update the Figma plugin from the latest release.`
+              : `MCP is on v${olderVer}, but plugin is on v${newerVer}. Update MCP with: npx @ufira/vibma@latest`;
+
+            ws.send(JSON.stringify({ type: "system", code: "VERSION_MISMATCH", message: role === "plugin" ? pluginMsg : mcpMsg, channel: channelName }));
+            other.ws.send(JSON.stringify({ type: "system", code: "VERSION_MISMATCH", message: otherRole === "plugin" ? pluginMsg : mcpMsg, channel: channelName }));
+            console.log(`[WARN] Version mismatch: ${role}=${version}, ${otherRole}=${other.version}`);
           }
         }
 
