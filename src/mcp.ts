@@ -7,13 +7,17 @@ import WebSocket from "ws";
 import { v4 as uuidv4 } from "uuid";
 import { readFileSync } from "fs";
 import { join, basename } from "path";
+import { fileURLToPath } from "url";
 import { registerAllTools } from "./tools/mcp-registry";
 
 // Read version — works with both tsx (source) and node (compiled dist/)
 let VIBMA_VERSION = "0.0.0";
 try {
   // Walk up from current file's dir to find package.json
-  const start = typeof __dirname !== "undefined" ? __dirname : process.cwd();
+  // Use import.meta.url (works in ESM), __dirname (works in CJS), process.cwd() as last resort
+  const start = typeof import.meta?.url !== "undefined"
+    ? join(fileURLToPath(import.meta.url), "..")
+    : typeof __dirname !== "undefined" ? __dirname : process.cwd();
   for (let dir = start; dir !== "/"; dir = join(dir, "..")) {
     try {
       const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
