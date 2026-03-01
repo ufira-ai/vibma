@@ -335,11 +335,29 @@ async function instanceSingle(p: any) {
       const match = node.children.find((child: any) => {
         if (child.type !== "COMPONENT" || !child.variantProperties) return false;
         return Object.entries(p.variantProperties).every(
-          ([k, v]) => child.variantProperties[k] === v
+          ([k, v]) => {
+            // Try exact key first, then prefixed key (Figma may store as "SetName/Key")
+            if (child.variantProperties[k] === v) return true;
+            const prefixedKey = `${node.name}/${k}`;
+            return child.variantProperties[prefixedKey] === v;
+          }
         );
       });
       if (match) node = match;
-      else throw new Error(`No variant matching ${JSON.stringify(p.variantProperties)} in ${node.name}`);
+      else {
+        // Show clean property names in error (strip component set prefix)
+        const prefix = `${node.name}/`;
+        const available = node.children
+          .filter((c: any) => c.type === "COMPONENT")
+          .map((c: any) => {
+            const props: Record<string, string> = {};
+            for (const [k, v] of Object.entries(c.variantProperties || {})) {
+              props[k.startsWith(prefix) ? k.slice(prefix.length) : k] = v as string;
+            }
+            return props;
+          });
+        throw new Error(`No variant matching ${JSON.stringify(p.variantProperties)} in ${node.name}. Available: ${JSON.stringify(available)}`);
+      }
     } else {
       node = node.defaultVariant || node.children[0];
     }
