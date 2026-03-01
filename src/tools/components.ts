@@ -153,6 +153,19 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
       catch (e) { return mcpError("Error getting overrides", e); }
     }
   );
+
+  server.tool(
+    "set_instance_properties",
+    "Set component property values on instances (e.g. text, boolean, instance swap). Use get_component_by_id to discover property keys. Batch: pass multiple items.",
+    { items: flexJson(z.array(z.object({
+      nodeId: S.nodeId,
+      properties: flexJson(z.record(z.string(), z.union([z.string(), z.boolean()]))).describe('Property key→value map, e.g. {"Label#1:0":"Click Me"}'),
+    }))).describe("Array of {nodeId, properties}"), depth: S.depth },
+    async (params: any) => {
+      try { return mcpJson(await sendCommand("set_instance_properties", params)); }
+      catch (e) { return mcpError("Error setting instance properties", e); }
+    }
+  );
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -407,12 +420,21 @@ async function getInstanceOverridesFigma(params: any) {
   };
 }
 
+async function setInstancePropertiesSingle(p: any) {
+  const node = await figma.getNodeByIdAsync(p.nodeId);
+  if (!node) throw new Error(`Node not found: ${p.nodeId}`);
+  if (node.type !== "INSTANCE") throw new Error(`Node ${p.nodeId} is ${node.type}, not an INSTANCE`);
+  (node as InstanceNode).setProperties(p.properties);
+  return {};
+}
+
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   create_component: (p) => batchHandler(p, createComponentSingle),
   create_component_from_node: (p) => batchHandler(p, fromNodeSingle),
   combine_as_variants: (p) => batchHandler(p, combineSingle),
   add_component_property: (p) => batchHandler(p, addPropSingle),
   create_instance_from_local: (p) => batchHandler(p, instanceSingle),
+  set_instance_properties: (p) => batchHandler(p, setInstancePropertiesSingle),
   search_components: getLocalComponentsFigma,
   get_component_by_id: getComponentByIdFigma,
   get_instance_overrides: getInstanceOverridesFigma,

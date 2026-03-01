@@ -26,6 +26,7 @@ const lintRules = z.enum([
   "default-name",            // Nodes with default/unnamed names
   "empty-container",         // Frames/components with layout but no children
   "stale-text-name",         // Text nodes where layer name diverges from content
+  "no-text-property",        // Text in components not bound to a component property
   // ── WCAG 2.2 rules ──
   "wcag-contrast",           // 1.4.3 AA text contrast (4.5:1 / 3:1 large)
   "wcag-contrast-enhanced",  // 1.4.6 AAA text contrast (7:1 / 4.5:1 large)
@@ -45,7 +46,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
     "Run design linter on a node tree. Returns issues grouped by category with affected node IDs and fix instructions. Lint child nodes individually for large trees.",
     {
       nodeId: z.string().optional().describe("Node ID to lint. Omit to lint current selection."),
-      rules: flexJson(z.array(lintRules)).optional().describe('Rules to run. Default: ["all"]. Options: no-autolayout, shape-instead-of-frame, hardcoded-color, no-text-style, fixed-in-autolayout, default-name, empty-container, stale-text-name, all, wcag-contrast, wcag-contrast-enhanced, wcag-non-text-contrast, wcag-target-size, wcag-text-size, wcag-line-height, wcag'),
+      rules: flexJson(z.array(lintRules)).optional().describe('Rules to run. Default: ["all"]. Options: no-autolayout, shape-instead-of-frame, hardcoded-color, no-text-style, fixed-in-autolayout, default-name, empty-container, stale-text-name, no-text-property, all, wcag-contrast, wcag-contrast-enhanced, wcag-non-text-contrast, wcag-target-size, wcag-text-size, wcag-line-height, wcag'),
       maxDepth: z.coerce.number().optional().describe("Max depth to recurse (default: 10)"),
       maxFindings: z.coerce.number().optional().describe("Stop after N findings (default: 50)"),
     },
@@ -181,6 +182,7 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "default-name": "Use set_node_properties to give descriptive names.",
   "empty-container": "These frames or components have auto-layout but no children. Delete them or add content.",
   "stale-text-name": "These text nodes have layer names that don't match their content. Use set_node_properties to rename, or leave if intentional.",
+  "no-text-property": "Use add_component_property to create a TEXT property on the component set, then set_node_properties with componentPropertyReferences: {characters: \"PropertyKey#id\"} to bind.",
   // ── WCAG fix instructions ──
   "wcag-contrast": "Adjust fill or background to meet AA (4.5:1, 3:1 large text).",
   "wcag-contrast-enhanced": "Adjust to meet AAA (7:1, 4.5:1 large text).",
@@ -306,6 +308,17 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       // Only flag if both name and characters are non-empty and they differ
       if (chars && node.name && node.name !== chars && node.name !== chars.slice(0, node.name.length)) {
         issues.push({ rule: "stale-text-name", nodeId: node.id, nodeName: node.name, extra: { characters: chars.slice(0, 60) } });
+        if (issues.length >= ctx.maxFindings) return;
+      }
+    }
+  }
+
+  // ── Rule: no-text-property ──
+  if (ctx.runAll || ctx.ruleSet.has("no-text-property")) {
+    if (node.type === "TEXT" && isInsideComponent(node)) {
+      const refs = (node as any).componentPropertyReferences;
+      if (!refs || !refs.characters) {
+        issues.push({ rule: "no-text-property", nodeId: node.id, nodeName: node.name });
         if (issues.length >= ctx.maxFindings) return;
       }
     }
@@ -512,6 +525,15 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
 
 function isFrame(node: BaseNode): node is FrameNode {
   return node.type === "FRAME" || node.type === "COMPONENT" || node.type === "COMPONENT_SET";
+}
+
+function isInsideComponent(node: BaseNode): boolean {
+  let p = node.parent;
+  while (p) {
+    if (p.type === "COMPONENT" || p.type === "COMPONENT_SET") return true;
+    p = p.parent;
+  }
+  return false;
 }
 
 const SHAPE_TYPES = new Set(["RECTANGLE", "ELLIPSE", "POLYGON", "STAR", "VECTOR", "LINE"]);

@@ -92,6 +92,14 @@ export async function serializeNode(
     } catch {
       // mainComponent unavailable (e.g. remote library not loaded)
     }
+    const cp = (inst as any).componentProperties;
+    if (cp && typeof cp === "object" && Object.keys(cp).length > 0) out.componentProperties = cp;
+  }
+
+  // ── Component property references ──────────────────────────────
+  if ("componentPropertyReferences" in node) {
+    const refs = (node as any).componentPropertyReferences;
+    if (refs && typeof refs === "object" && Object.keys(refs).length > 0) out.componentPropertyReferences = refs;
   }
 
   // ── Text style ────────────────────────────────────────────────
