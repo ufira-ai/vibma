@@ -4,7 +4,7 @@ import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
 import { batchHandler, findVariableById } from "./helpers";
-import { formatContrastFailures } from "../utils/wcag";
+
 
 // ─── Schemas ─────────────────────────────────────────────────────
 
@@ -225,25 +225,9 @@ async function setValueSingle(p: any) {
   }
   variable.setValueForMode(p.modeId, value);
 
-  // WCAG contrast recommendation for COLOR variables
-  const result: any = {};
-  if (variable.resolvedType === "COLOR" && typeof value === "object" && "r" in value) {
-    const collectionVars = await figma.variables.getLocalVariablesAsync("COLOR");
-    const sameCollection = collectionVars.filter(
-      (v: any) => v.variableCollectionId === variable.variableCollectionId && v.id !== variable.id
-    );
-    const existingColors: Array<{ name: string; color: { r: number; g: number; b: number } }> = [];
-    for (const v of sameCollection) {
-      const modeValue = v.valuesByMode?.[p.modeId];
-      if (modeValue && typeof modeValue === "object" && "r" in modeValue) {
-        existingColors.push({ name: v.name, color: modeValue as { r: number; g: number; b: number } });
-      }
-    }
-    const contrastReport = formatContrastFailures(value, existingColors);
-    if (contrastReport) result.warning = contrastReport;
-  }
-
-  return Object.keys(result).length === 0 ? {} : result;
+  // WCAG contrast check disabled for now — too noisy for primitive color variables
+  // See: https://github.com/ufira-ai/Vibma/issues/11
+  return {};
 }
 
 async function getLocalVariablesFigma(params: any) {
