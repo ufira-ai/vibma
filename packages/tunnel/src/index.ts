@@ -156,6 +156,17 @@ wss.on("connection", (ws: WebSocket) => {
 
         // Enforce one-per-role
         if (channel[role] !== null) {
+          // Same client re-joining — treat as success
+          if (channel[role]!.ws === ws) {
+            ws.send(JSON.stringify({
+              type: "join-success",
+              id: data.id,
+              channel: channelName,
+              role,
+              message: `Already in channel "${channelName}". Continue with ping.`,
+            }));
+            return;
+          }
           const occupant = role === "mcp" ? "MCP server" : "Figma plugin";
           ws.send(JSON.stringify({
             type: "error",

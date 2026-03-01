@@ -101,6 +101,18 @@ function connectToFigma(port: number = activePort) {
     try {
       const json = JSON.parse(data) as any;
 
+      // Handle same-client rejoin (already in channel)
+      if (json.type === "join-success") {
+        logger.info(json.message);
+        if (json.id && pendingRequests.has(json.id)) {
+          const req = pendingRequests.get(json.id)!;
+          clearTimeout(req.timeout);
+          req.resolve({ status: "already_joined", channel: json.channel });
+          pendingRequests.delete(json.id);
+        }
+        return;
+      }
+
       // Handle relay errors (e.g., ROLE_OCCUPIED rejection)
       if (json.type === "error") {
         logger.error(`Relay error: ${json.message}`);

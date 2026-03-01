@@ -548,7 +548,8 @@
 
           state.socket.onerror = (error) => {
             console.error("WebSocket error:", error);
-            updateConnectionStatus(false, "Connection error");
+            state.lastError = `Relay not reachable on port ${port}. Start the relay first, then connect.`;
+            updateConnectionStatus(false, state.lastError);
             state.connected = false;
             state.socket = null;
           };
