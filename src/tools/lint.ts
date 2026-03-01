@@ -124,12 +124,31 @@ async function lintNodeHandler(params: any): Promise<any> {
     root = sel.length === 1 ? sel[0] : figma.currentPage;
   }
 
-  // Collect local styles for checks
+  // Collect local styles + color variables for checks
   let localPaintStyleIds = new Set<string>();
   let localTextStyleIds = new Set<string>();
+  let paintStyleEntries: ColorEntry[] = [];
+  let colorVarEntries: ColorEntry[] = [];
   if (runAll || ruleSet.has("hardcoded-color")) {
     const paints = await figma.getLocalPaintStylesAsync();
     localPaintStyleIds = new Set(paints.map(s => s.id));
+    for (const style of paints) {
+      if (style.paints.length === 1 && style.paints[0].type === "SOLID") {
+        const p = style.paints[0] as SolidPaint;
+        paintStyleEntries.push({ name: style.name, id: style.id, r: p.color.r, g: p.color.g, b: p.color.b, a: p.opacity ?? 1 });
+      }
+    }
+    const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    const defaultModes = new Map(collections.map(c => [c.id, c.defaultModeId]));
+    for (const v of colorVars) {
+      const modeId = defaultModes.get(v.variableCollectionId);
+      if (!modeId) continue;
+      const val = v.valuesByMode[modeId];
+      if (!val || typeof val !== "object" || "type" in val) continue; // skip aliases
+      const c = val as { r: number; g: number; b: number; a?: number };
+      colorVarEntries.push({ name: v.name, id: v.id, r: c.r, g: c.g, b: c.b, a: c.a ?? 1 });
+    }
   }
   if (runAll || ruleSet.has("no-text-style")) {
     const texts = await figma.getLocalTextStylesAsync();
@@ -137,7 +156,7 @@ async function lintNodeHandler(params: any): Promise<any> {
   }
 
   const issues: Issue[] = [];
-  const ctx: LintCtx = { runAll, ruleSet, maxDepth, maxFindings, localPaintStyleIds, localTextStyleIds, hasPaintStyles: localPaintStyleIds.size > 0, hasTextStyles: localTextStyleIds.size > 0, runWcag };
+  const ctx: LintCtx = { runAll, ruleSet, maxDepth, maxFindings, localPaintStyleIds, localTextStyleIds, hasPaintStyles: localPaintStyleIds.size > 0, hasTextStyles: localTextStyleIds.size > 0, hasColorVars: colorVarEntries.length > 0, paintStyleEntries, colorVarEntries, runWcag };
 
   await walkNode(root, 0, issues, ctx);
 
@@ -176,7 +195,7 @@ async function lintNodeHandler(params: any): Promise<any> {
 const FIX_INSTRUCTIONS: Record<string, string> = {
   "no-autolayout": "Use lint_fix_autolayout or update_frame with layoutMode to add auto-layout to these frames.",
   "shape-instead-of-frame": "Use lint_fix_replace_shape_with_frame to convert these shapes to frames with children.",
-  "hardcoded-color": "Use set_fill_color with styleName to apply a paint style, or set_variable_binding to bind to a color variable.",
+  "hardcoded-color": "Check each node's 'matchName' for a suggested style or variable. For fills: use set_fill_color with styleName, or set_variable_binding with field 'fills/0/color'. For strokes: use set_stroke_color with styleName, or set_variable_binding with field 'strokes/0/color'.",
   "no-text-style": "Use apply_style_to_node with styleType:\"text\" and styleName, or set_variable_binding to bind text properties to variables.",
   "fixed-in-autolayout": "Use update_frame with layoutSizingHorizontal/layoutSizingVertical to set FILL or HUG instead of FIXED sizing.",
   "default-name": "Use set_node_properties to give descriptive names.",
@@ -192,6 +211,8 @@ const FIX_INSTRUCTIONS: Record<string, string> = {
   "wcag-line-height": "Increase line height to 1.5× font size.",
 };
 
+interface ColorEntry { name: string; id: string; r: number; g: number; b: number; a: number }
+
 interface LintCtx {
   runAll: boolean;
   ruleSet: Set<string>;
@@ -201,6 +222,9 @@ interface LintCtx {
   localTextStyleIds: Set<string>;
   hasPaintStyles: boolean;
   hasTextStyles: boolean;
+  hasColorVars: boolean;
+  paintStyleEntries: ColorEntry[];
+  colorVarEntries: ColorEntry[];
   runWcag: boolean;
 }
 
@@ -243,17 +267,26 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
   }
 
   // ── Rule: hardcoded-color ──
-  if ((ctx.runAll || ctx.ruleSet.has("hardcoded-color")) && ctx.hasPaintStyles) {
+  if ((ctx.runAll || ctx.ruleSet.has("hardcoded-color")) && (ctx.hasPaintStyles || ctx.hasColorVars)) {
+    const checkPaints = (paints: any, styleId: any, hasBoundVar: boolean, property: "fill" | "stroke") => {
+      if (!paints || !Array.isArray(paints) || paints.length === 0 || paints[0].type !== "SOLID") return;
+      if (hasBoundVar) return;
+      if (styleId && styleId !== "" && styleId !== figma.mixed) return;
+      const color = paints[0].color;
+      const opacity = paints[0].opacity ?? 1;
+      const hex = rgbaToHex({ r: color.r, g: color.g, b: color.b, a: opacity });
+      const match = findColorMatch(color.r, color.g, color.b, opacity, ctx);
+      const extra: Record<string, any> = { hex, property };
+      if (match) { extra.matchType = match.type; extra.matchName = match.name; extra.matchId = match.id; }
+      issues.push({ rule: "hardcoded-color", nodeId: node.id, nodeName: node.name, extra });
+    };
     if ("fills" in node && "fillStyleId" in node) {
-      const fills = (node as any).fills;
-      const fillStyleId = (node as any).fillStyleId;
-      const hasFillVar = (node as any).boundVariables?.fills?.length > 0;
-      if (fills && Array.isArray(fills) && fills.length > 0 && fills[0].type === "SOLID") {
-        if (!hasFillVar && (!fillStyleId || fillStyleId === "" || fillStyleId === figma.mixed)) {
-          issues.push({ rule: "hardcoded-color", nodeId: node.id, nodeName: node.name });
-          if (issues.length >= ctx.maxFindings) return;
-        }
-      }
+      checkPaints((node as any).fills, (node as any).fillStyleId, (node as any).boundVariables?.fills?.length > 0, "fill");
+      if (issues.length >= ctx.maxFindings) return;
+    }
+    if ("strokes" in node && "strokeStyleId" in node) {
+      checkPaints((node as any).strokes, (node as any).strokeStyleId, (node as any).boundVariables?.strokes?.length > 0, "stroke");
+      if (issues.length >= ctx.maxFindings) return;
     }
   }
 
@@ -521,6 +554,19 @@ async function walkNode(node: BaseNode, depth: number, issues: Issue[], ctx: Lin
       await walkNode(child, depth + 1, issues, ctx);
     }
   }
+}
+
+function findColorMatch(r: number, g: number, b: number, a: number, ctx: LintCtx): { type: "style" | "variable"; name: string; id: string } | null {
+  const eps = 0.02;
+  for (const e of ctx.paintStyleEntries) {
+    if (Math.abs(e.r - r) < eps && Math.abs(e.g - g) < eps && Math.abs(e.b - b) < eps && Math.abs(e.a - a) < eps)
+      return { type: "style", name: e.name, id: e.id };
+  }
+  for (const e of ctx.colorVarEntries) {
+    if (Math.abs(e.r - r) < eps && Math.abs(e.g - g) < eps && Math.abs(e.b - b) < eps && Math.abs(e.a - a) < eps)
+      return { type: "variable", name: e.name, id: e.id };
+  }
+  return null;
 }
 
 function isFrame(node: BaseNode): node is FrameNode {
