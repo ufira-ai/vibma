@@ -232,7 +232,7 @@ async function createTextStyleSingle(p: any) {
   const style = figma.createTextStyle();
   style.name = p.name;
   const fontStyle = p.fontStyle || "Regular";
-  await figma.loadFontAsync({ family: p.fontFamily, style: fontStyle });
+  // Font already preloaded by batch prep
   style.fontName = { family: p.fontFamily, style: fontStyle };
   style.fontSize = p.fontSize;
   if (p.lineHeight !== undefined) {
@@ -366,10 +366,9 @@ async function updateTextStyleSingle(p: any) {
   const style = await resolveTextStyle(p.id);
   if (p.name !== undefined) style.name = p.name;
 
-  // Always load the current font — Figma requires it for any text style mutation
+  // Font already preloaded by batch prep
   const newFamily = p.fontFamily ?? style.fontName.family;
   const newFontStyle = p.fontStyle ?? style.fontName.style;
-  await figma.loadFontAsync({ family: newFamily, style: newFontStyle });
   if (p.fontFamily !== undefined || p.fontStyle !== undefined) {
     style.fontName = { family: newFamily, style: newFontStyle };
   }
@@ -407,14 +406,104 @@ async function updateTextStyleSingle(p: any) {
   return "ok";
 }
 
+// Max unique fonts to load per batch — prevents timeouts with many font families
+const MAX_FONTS_PER_BATCH = 5;
+
+// Batch prep: preload fonts in parallel, cap unique fonts to avoid timeout
+async function createTextStyleBatch(params: any) {
+  const items: any[] = params.items || [params];
+
+  // Map each item to its font key
+  const itemFontKeys = items.map(p => `${p.fontFamily}::${p.fontStyle || "Regular"}`);
+  const uniqueFonts = [...new Set(itemFontKeys)];
+
+  // If within cap, process all
+  if (uniqueFonts.length <= MAX_FONTS_PER_BATCH) {
+    await Promise.all(
+      uniqueFonts.map(key => {
+        const [family, style] = key.split("::");
+        return figma.loadFontAsync({ family, style });
+      })
+    );
+    return batchHandler(params, createTextStyleSingle);
+  }
+
+  // Over cap: process items whose fonts fit, return remaining
+  const loadedFonts = new Set(uniqueFonts.slice(0, MAX_FONTS_PER_BATCH));
+  await Promise.all(
+    [...loadedFonts].map(key => {
+      const [family, style] = key.split("::");
+      return figma.loadFontAsync({ family, style });
+    })
+  );
+
+  const processItems: any[] = [];
+  const deferredItems: any[] = [];
+  for (let i = 0; i < items.length; i++) {
+    if (loadedFonts.has(itemFontKeys[i])) processItems.push(items[i]);
+    else deferredItems.push(items[i]);
+  }
+
+  const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
+  const result = await batchHandler({ ...params, items: processItems }, createTextStyleSingle);
+  result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT created to avoid timeout. Call create_text_style again with those items.`;
+  return result;
+}
+
+async function updateTextStyleBatch(params: any) {
+  const items: any[] = params.items || [params];
+
+  // Resolve fonts for all items
+  const itemFontKeys: string[] = [];
+  for (const p of items) {
+    const style = await resolveTextStyle(p.id);
+    const family = p.fontFamily ?? style.fontName.family;
+    const fontStyle = p.fontStyle ?? style.fontName.style;
+    itemFontKeys.push(`${family}::${fontStyle}`);
+  }
+  const uniqueFonts = [...new Set(itemFontKeys)];
+
+  // If within cap, process all
+  if (uniqueFonts.length <= MAX_FONTS_PER_BATCH) {
+    await Promise.all(
+      uniqueFonts.map(key => {
+        const [family, style] = key.split("::");
+        return figma.loadFontAsync({ family, style });
+      })
+    );
+    return batchHandler(params, updateTextStyleSingle);
+  }
+
+  // Over cap: process items whose fonts fit, return remaining
+  const loadedFonts = new Set(uniqueFonts.slice(0, MAX_FONTS_PER_BATCH));
+  await Promise.all(
+    [...loadedFonts].map(key => {
+      const [family, style] = key.split("::");
+      return figma.loadFontAsync({ family, style });
+    })
+  );
+
+  const processItems: any[] = [];
+  const deferredItems: any[] = [];
+  for (let i = 0; i < items.length; i++) {
+    if (loadedFonts.has(itemFontKeys[i])) processItems.push(items[i]);
+    else deferredItems.push(items[i]);
+  }
+
+  const deferredFonts = uniqueFonts.slice(MAX_FONTS_PER_BATCH).map(k => k.replace("::", " "));
+  const result = await batchHandler({ ...params, items: processItems }, updateTextStyleSingle);
+  result.deferred = `${deferredItems.length} text style(s) using fonts [${deferredFonts.join(", ")}] were NOT updated to avoid timeout. Call update_text_style again with those items.`;
+  return result;
+}
+
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   get_styles: getStylesFigma,
   get_style_by_id: getStyleByIdFigma,
   remove_style: removeStyleFigma,
   create_paint_style: (p) => batchHandler(p, createPaintStyleSingle),
-  create_text_style: (p) => batchHandler(p, createTextStyleSingle),
+  create_text_style: createTextStyleBatch,
   create_effect_style: (p) => batchHandler(p, createEffectStyleSingle),
   apply_style_to_node: (p) => batchHandler(p, applyStyleSingle),
   update_paint_style: (p) => batchHandler(p, updatePaintStyleSingle),
-  update_text_style: (p) => batchHandler(p, updateTextStyleSingle),
+  update_text_style: updateTextStyleBatch,
 };
