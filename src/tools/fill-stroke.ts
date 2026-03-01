@@ -37,7 +37,7 @@ const opacityItem = z.object({
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
   server.tool(
     "set_fill_color",
-    "Set fill color on nodes. Use styleName to apply a paint style by name, or provide color directly. Batch: pass multiple items.",
+    "Set fill color on nodes. Prefer styleName (design token) over hardcoded color — hardcoded values trigger lint warnings. Batch: pass multiple items.",
     { items: flexJson(z.array(fillItem)).describe("Array of {nodeId, color?, styleName?}"), depth: S.depth },
     async (params: any) => {
       try { return mcpJson(await sendCommand("set_fill_color", params)); }
@@ -47,7 +47,7 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
   server.tool(
     "set_stroke_color",
-    "Set stroke color on nodes. Use styleName to apply a paint style by name. Batch: pass multiple items.",
+    "Set stroke color on nodes. Prefer styleName (design token) over hardcoded color — hardcoded values trigger lint warnings. Batch: pass multiple items.",
     { items: flexJson(z.array(strokeItem)).describe("Array of {nodeId, color?, strokeWeight?, styleName?}"), depth: S.depth },
     async (params: any) => {
       try { return mcpJson(await sendCommand("set_stroke_color", params)); }

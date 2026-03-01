@@ -190,6 +190,16 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
       catch (e) { return mcpError("Error getting node variables", e); }
     }
   );
+
+  server.tool(
+    "delete_variable_collection",
+    "Delete a variable collection and all its variables. This is destructive and cannot be undone.",
+    { collectionId: z.string().describe("Collection ID to delete") },
+    async ({ collectionId }: any) => {
+      try { return mcpJson(await sendCommand("delete_variable_collection", { collectionId })); }
+      catch (e) { return mcpError("Error deleting variable collection", e); }
+    }
+  );
 }
 
 // ─── Figma Handlers ──────────────────────────────────────────────
@@ -347,6 +357,13 @@ async function getNodeVariablesFigma(params: any) {
 }
 
 
+async function deleteCollectionFigma(params: any) {
+  const c = await findCollectionById(params.collectionId);
+  if (!c) throw new Error(`Collection not found: ${params.collectionId}`);
+  c.remove();
+  return "ok";
+}
+
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   create_variable_collection: (p) => batchHandler(p, createCollectionSingle),
   create_variable: (p) => batchHandler(p, createVariableSingle),
@@ -361,4 +378,5 @@ export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   remove_mode: (p) => batchHandler(p, removeModeSingle),
   set_explicit_variable_mode: (p) => batchHandler(p, setExplicitModeSingle),
   get_node_variables: getNodeVariablesFigma,
+  delete_variable_collection: deleteCollectionFigma,
 };

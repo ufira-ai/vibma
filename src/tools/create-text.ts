@@ -12,8 +12,10 @@ const textItem = z.object({
   name: z.string().optional().describe("Layer name (default: text content)"),
   x: S.xPos,
   y: S.yPos,
+  fontFamily: z.string().optional().describe("Font family (default: Inter). Use get_available_fonts to list installed fonts."),
+  fontStyle: z.string().optional().describe("Font style, e.g. 'Regular', 'Bold', 'Italic' (default: derived from fontWeight). Overrides fontWeight when set."),
   fontSize: z.coerce.number().optional().describe("Font size (default: 14)"),
-  fontWeight: z.coerce.number().optional().describe("Font weight: 100-900 (default: 400)"),
+  fontWeight: z.coerce.number().optional().describe("Font weight: 100-900 (default: 400). Ignored when fontStyle is set."),
   fontColor: flexJson(S.colorRgba).optional().describe('Font color. Hex "#000000" or {r,g,b,a?} 0-1. Default: black.'),
   fontColorVariableId: z.string().optional().describe("Bind a color variable to the text fill instead of hardcoded fontColor."),
   fontColorStyleName: z.string().optional().describe("Apply a paint style to the text fill by name (case-insensitive). Overrides fontColor."),
@@ -32,7 +34,7 @@ const textItem = z.object({
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
   server.tool(
     "create_text",
-    "Create text nodes in Figma. Uses Inter font. Max 10 items per batch. Use textStyleName for typography and fontColorStyleName for fill color.",
+    "Create text nodes. Max 10 per batch. Prefer textStyleName for typography and fontColorStyleName or fontColorVariableId for color — hardcoded values skip design tokens. Supports custom fonts via fontFamily.",
     { items: flexJson(z.array(textItem).max(10)).describe("Array of text nodes to create (max 10)"), depth: S.depth },
     async (params: any) => {
       try { return mcpJson(await sendCommand("create_text", params)); }
@@ -67,8 +69,9 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
   // Collect unique font keys needed (family::style format)
   const fontKeys = new Set<string>();
   for (const p of items) {
-    const style = getFontStyle(p.fontWeight || 400);
-    fontKeys.add(`Inter::${style}`);
+    const family = p.fontFamily || "Inter";
+    const style = p.fontStyle || getFontStyle(p.fontWeight || 400);
+    fontKeys.add(`${family}::${style}`);
   }
 
   // Resolve text styles by name once (not per-item)
@@ -129,6 +132,7 @@ async function prepCreateText(params: any): Promise<CreateTextContext> {
 async function createTextSingle(p: any, ctx: CreateTextContext): Promise<any> {
   const {
     x = 0, y = 0, text = "Text", fontSize = 14, fontWeight = 400,
+    fontFamily = "Inter", fontStyle,
     fontColor, fontColorVariableId, fontColorStyleName, name = "",
     parentId, textStyleId, textStyleName,
     textAlignHorizontal, textAlignVertical,
@@ -140,8 +144,8 @@ async function createTextSingle(p: any, ctx: CreateTextContext): Promise<any> {
   textNode.y = y;
   textNode.name = name || text;
 
-  const style = getFontStyle(fontWeight);
-  textNode.fontName = { family: "Inter", style };
+  const style = fontStyle || getFontStyle(fontWeight);
+  textNode.fontName = { family: fontFamily, style };
   textNode.fontSize = parseInt(String(fontSize));
 
   await ctx.setCharacters(textNode, text);
