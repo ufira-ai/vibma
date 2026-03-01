@@ -3,7 +3,7 @@ import { flexJson, flexBool } from "../utils/coercion";
 import * as S from "./schemas";
 import type { McpServer, SendCommandFn } from "./types";
 import { mcpJson, mcpError } from "./types";
-import { findVariableById } from "./helpers";
+import { batchHandler, findVariableById } from "./helpers";
 import { formatContrastFailures } from "../utils/wcag";
 
 // ─── Schemas ─────────────────────────────────────────────────────
@@ -363,18 +363,6 @@ async function getNodeVariablesFigma(params: any) {
   return result;
 }
 
-async function batchHandler(params: any, fn: (item: any) => Promise<any>) {
-  const items = params.items || [params];
-  const results = [];
-  for (const item of items) {
-    try {
-      const r = await fn(item);
-      results.push(r && typeof r === "object" && Object.keys(r).length === 0 ? "ok" : r);
-    }
-    catch (e: any) { results.push({ error: e.message }); }
-  }
-  return { results };
-}
 
 export const figmaHandlers: Record<string, (params: any) => Promise<any>> = {
   create_variable_collection: (p) => batchHandler(p, createCollectionSingle),

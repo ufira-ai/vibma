@@ -69,187 +69,169 @@ export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) 
 
 // ─── Figma Handlers ──────────────────────────────────────────────
 
-/**
- * Batch set_text_content with font preloading.
- * Resolves all nodes and preloads their fonts in one pass before writing text.
- */
-async function setTextContentBatch(params: any): Promise<{ results: any[] }> {
-  const items = params.items || [params];
-  const depth = params.depth;
-
-  // 1. Resolve all nodes first
-  const resolved: { node: TextNode; text: string }[] = [];
-  const errors: Map<number, string> = new Map();
-  for (let i = 0; i < items.length; i++) {
-    const p = items[i];
-    const node = await figma.getNodeByIdAsync(p.nodeId);
-    if (!node) { errors.set(i, `Node not found: ${p.nodeId}`); continue; }
-    if (node.type !== "TEXT") { errors.set(i, `Node is not a text node: ${p.nodeId}`); continue; }
-    resolved.push({ node: node as TextNode, text: p.text });
-  }
-
-  // 2. Collect unique fonts and preload in parallel
-  const fontsToLoad = new Map<string, FontName>();
-  const fallback: FontName = { family: "Inter", style: "Regular" };
-  fontsToLoad.set("Inter::Regular", fallback);
-  for (const { node } of resolved) {
-    const fn = node.fontName;
-    if (fn !== figma.mixed && fn) {
-      const key = `${(fn as FontName).family}::${(fn as FontName).style}`;
-      fontsToLoad.set(key, fn as FontName);
-    }
-  }
-  await Promise.all([...fontsToLoad.values()].map(f => figma.loadFontAsync(f)));
-
-  // 3. Import setCharacters once
-  const { setCharacters } = await import("../utils/figma-helpers");
-
-  // 4. Set text on all nodes
-  const results: any[] = [];
-  let resolvedIdx = 0;
-  for (let i = 0; i < items.length; i++) {
-    if (errors.has(i)) {
-      results.push({ error: errors.get(i) });
-      continue;
-    }
-    const { node, text } = resolved[resolvedIdx++];
-    try {
-      await setCharacters(node, text);
-      let result: any = "ok";
-      if (depth !== undefined) {
-        const { nodeSnapshot } = await import("./helpers");
-        const snapshot = await nodeSnapshot(node.id, depth);
-        if (snapshot) result = snapshot;
-      }
-      results.push(result);
-    } catch (e: any) {
-      results.push({ error: e.message });
-    }
-  }
-  return { results };
+interface TextContentContext {
+  nodeMap: Map<string, TextNode>;
+  setCharacters: (node: TextNode, text: string) => Promise<void>;
 }
 
 /**
- * Batch set_text_properties with font preloading.
+ * Pre-resolve nodes and preload their fonts in one pass.
  */
-async function setTextPropertiesBatch(params: any): Promise<{ results: any[] }> {
+async function prepSetTextContent(params: any): Promise<TextContentContext> {
   const items = params.items || [params];
-  const depth = params.depth;
 
-  // 1. Resolve all nodes
-  const resolved: { node: TextNode; props: any }[] = [];
-  const errors: Map<number, string> = new Map();
-  for (let i = 0; i < items.length; i++) {
-    const p = items[i];
-    const node = await figma.getNodeByIdAsync(p.nodeId);
-    if (!node) { errors.set(i, `Node not found: ${p.nodeId}`); continue; }
-    if (node.type !== "TEXT") { errors.set(i, `Not a text node: ${p.nodeId}`); continue; }
-    resolved.push({ node: node as TextNode, props: p });
-  }
-
-  // 2. Collect fonts to load
+  const nodeMap = new Map<string, TextNode>();
   const fontsToLoad = new Map<string, FontName>();
-  for (const { node, props } of resolved) {
-    // Current font
-    const fn = node.fontName;
-    if (fn !== figma.mixed && fn) {
-      fontsToLoad.set(`${fn.family}::${fn.style}`, fn);
-    }
-    // Target font if changing weight
-    if (props.fontWeight !== undefined) {
-      const style = getFontStyle(props.fontWeight);
-      const family = (fn !== figma.mixed && fn) ? fn.family : "Inter";
-      fontsToLoad.set(`${family}::${style}`, { family, style });
+  fontsToLoad.set("Inter::Regular", { family: "Inter", style: "Regular" });
+
+  for (const p of items) {
+    const node = await figma.getNodeByIdAsync(p.nodeId);
+    if (node?.type === "TEXT") {
+      nodeMap.set(p.nodeId, node as TextNode);
+      const fn = (node as TextNode).fontName;
+      if (fn !== figma.mixed && fn) {
+        fontsToLoad.set(`${(fn as FontName).family}::${(fn as FontName).style}`, fn as FontName);
+      }
     }
   }
+
+  await Promise.all([...fontsToLoad.values()].map(f => figma.loadFontAsync(f)));
+  const { setCharacters } = await import("../utils/figma-helpers");
+  return { nodeMap, setCharacters };
+}
+
+async function setTextContentSingle(p: any, ctx: TextContentContext): Promise<any> {
+  const node = ctx.nodeMap.get(p.nodeId);
+  if (!node) {
+    const raw = await figma.getNodeByIdAsync(p.nodeId);
+    if (!raw) throw new Error(`Node not found: ${p.nodeId}`);
+    throw new Error(`Node is not a text node: ${p.nodeId}`);
+  }
+  await ctx.setCharacters(node, p.text);
+  return {};
+}
+
+async function setTextContentBatch(params: any) {
+  const ctx = await prepSetTextContent(params);
+  return batchHandler(params, (item) => setTextContentSingle(item, ctx));
+}
+
+// ─── set_text_properties ─────────────────────────────────────────
+
+interface TextPropsContext {
+  nodeMap: Map<string, TextNode>;
+  textStyles: any[] | null;
+}
+
+/**
+ * Pre-resolve nodes, preload current + target fonts, resolve text styles.
+ */
+async function prepSetTextProperties(params: any): Promise<TextPropsContext> {
+  const items = params.items || [params];
+
+  const nodeMap = new Map<string, TextNode>();
+  const fontsToLoad = new Map<string, FontName>();
+
+  for (const p of items) {
+    const node = await figma.getNodeByIdAsync(p.nodeId);
+    if (node?.type === "TEXT") {
+      const tn = node as TextNode;
+      nodeMap.set(p.nodeId, tn);
+      const fn = tn.fontName;
+      if (fn !== figma.mixed && fn) {
+        fontsToLoad.set(`${fn.family}::${fn.style}`, fn);
+      }
+      if (p.fontWeight !== undefined) {
+        const style = getFontStyle(p.fontWeight);
+        const family = (fn !== figma.mixed && fn) ? fn.family : "Inter";
+        fontsToLoad.set(`${family}::${style}`, { family, style });
+      }
+    }
+  }
+
   await Promise.all([...fontsToLoad.values()].map(f => figma.loadFontAsync(f)));
 
-  // 3. Resolve text styles by name once
   let textStyles: any[] | null = null;
   const styleNames = new Set<string>();
-  for (const { props } of resolved) {
-    if (props.textStyleName && !props.textStyleId) styleNames.add(props.textStyleName);
+  for (const p of items) {
+    if (p.textStyleName && !p.textStyleId) styleNames.add(p.textStyleName);
   }
   if (styleNames.size > 0) textStyles = await figma.getLocalTextStylesAsync();
 
-  // 4. Apply properties
-  const results: any[] = [];
-  let resolvedIdx = 0;
-  for (let i = 0; i < items.length; i++) {
-    if (errors.has(i)) { results.push({ error: errors.get(i) }); continue; }
-    const { node, props } = resolved[resolvedIdx++];
-    try {
-      // Text style takes priority
-      let resolvedStyleId = props.textStyleId;
-      if (!resolvedStyleId && props.textStyleName && textStyles) {
-        const exact = textStyles.find((s: any) => s.name === props.textStyleName);
-        if (exact) resolvedStyleId = exact.id;
-        else {
-          const fuzzy = textStyles.find((s: any) => s.name.toLowerCase().includes(props.textStyleName.toLowerCase()));
-          if (fuzzy) resolvedStyleId = fuzzy.id;
-        }
-      }
-      if (resolvedStyleId) {
-        const s = await figma.getStyleByIdAsync(resolvedStyleId);
-        if (s?.type === "TEXT") await (node as any).setTextStyleIdAsync(s.id);
-      } else {
-        if (props.fontWeight !== undefined) {
-          const family = (node.fontName !== figma.mixed && node.fontName) ? node.fontName.family : "Inter";
-          node.fontName = { family, style: getFontStyle(props.fontWeight) };
-        }
-        if (props.fontSize !== undefined) node.fontSize = props.fontSize;
-      }
+  return { nodeMap, textStyles };
+}
 
-      if (props.fontColor) {
-        node.fills = [{
-          type: "SOLID",
-          color: { r: props.fontColor.r ?? 0, g: props.fontColor.g ?? 0, b: props.fontColor.b ?? 0 },
-          opacity: props.fontColor.a ?? 1,
-        }];
-      }
+async function setTextPropertiesSingle(p: any, ctx: TextPropsContext): Promise<any> {
+  const node = ctx.nodeMap.get(p.nodeId);
+  if (!node) {
+    const raw = await figma.getNodeByIdAsync(p.nodeId);
+    if (!raw) throw new Error(`Node not found: ${p.nodeId}`);
+    throw new Error(`Not a text node: ${p.nodeId}`);
+  }
 
-      if (props.textAlignHorizontal) node.textAlignHorizontal = props.textAlignHorizontal;
-      if (props.textAlignVertical) node.textAlignVertical = props.textAlignVertical;
-      if (props.textAutoResize) node.textAutoResize = props.textAutoResize;
-      if (props.layoutSizingHorizontal) {
-        try { node.layoutSizingHorizontal = props.layoutSizingHorizontal; } catch {}
-      }
-      if (props.layoutSizingVertical) {
-        try { node.layoutSizingVertical = props.layoutSizingVertical; } catch {}
-      }
-
-      let result: any = "ok";
-      if (depth !== undefined) {
-        const { nodeSnapshot } = await import("./helpers");
-        const snapshot = await nodeSnapshot(node.id, depth);
-        if (snapshot) result = snapshot;
-      }
-
-      // Warnings — only on actual conflicts or actionable suggestions
-      const warnings: string[] = [];
-      if (props.textStyleName && props.textStyleId) {
-        warnings.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one.");
-      }
-      if (!resolvedStyleId && !props.textStyleName && !props.textStyleId &&
-          (props.fontSize !== undefined || props.fontWeight !== undefined)) {
-        const fs = props.fontSize ?? (typeof node.fontSize === "number" ? node.fontSize : 14);
-        const fw = props.fontWeight ?? 400;
-        warnings.push(await suggestTextStyle(fs, fw));
-      }
-      if (props.fontColor) {
-        const suggestion = await suggestStyleForColor(props.fontColor, "fontColorStyleName");
-        if (suggestion) warnings.push(suggestion);
-      }
-      if (warnings.length > 0) {
-        if (typeof result === "string") result = { status: result };
-        result.warning = warnings.join(" ");
-      }
-      results.push(result);
-    } catch (e: any) {
-      results.push({ error: e.message });
+  // Text style takes priority
+  let resolvedStyleId = p.textStyleId;
+  if (!resolvedStyleId && p.textStyleName && ctx.textStyles) {
+    const exact = ctx.textStyles.find((s: any) => s.name === p.textStyleName);
+    if (exact) resolvedStyleId = exact.id;
+    else {
+      const fuzzy = ctx.textStyles.find((s: any) => s.name.toLowerCase().includes(p.textStyleName.toLowerCase()));
+      if (fuzzy) resolvedStyleId = fuzzy.id;
     }
   }
-  return { results };
+  if (resolvedStyleId) {
+    const s = await figma.getStyleByIdAsync(resolvedStyleId);
+    if (s?.type === "TEXT") await (node as any).setTextStyleIdAsync(s.id);
+  } else {
+    if (p.fontWeight !== undefined) {
+      const family = (node.fontName !== figma.mixed && node.fontName) ? node.fontName.family : "Inter";
+      node.fontName = { family, style: getFontStyle(p.fontWeight) };
+    }
+    if (p.fontSize !== undefined) node.fontSize = p.fontSize;
+  }
+
+  if (p.fontColor) {
+    node.fills = [{
+      type: "SOLID",
+      color: { r: p.fontColor.r ?? 0, g: p.fontColor.g ?? 0, b: p.fontColor.b ?? 0 },
+      opacity: p.fontColor.a ?? 1,
+    }];
+  }
+
+  if (p.textAlignHorizontal) node.textAlignHorizontal = p.textAlignHorizontal;
+  if (p.textAlignVertical) node.textAlignVertical = p.textAlignVertical;
+  if (p.textAutoResize) node.textAutoResize = p.textAutoResize;
+  if (p.layoutSizingHorizontal) {
+    try { node.layoutSizingHorizontal = p.layoutSizingHorizontal; } catch {}
+  }
+  if (p.layoutSizingVertical) {
+    try { node.layoutSizingVertical = p.layoutSizingVertical; } catch {}
+  }
+
+  // Warnings
+  const warnings: string[] = [];
+  if (p.textStyleName && p.textStyleId) {
+    warnings.push("Both textStyleName and textStyleId provided — used textStyleId. Pass only one.");
+  }
+  if (!resolvedStyleId && !p.textStyleName && !p.textStyleId &&
+      (p.fontSize !== undefined || p.fontWeight !== undefined)) {
+    const fs = p.fontSize ?? (typeof node.fontSize === "number" ? node.fontSize : 14);
+    const fw = p.fontWeight ?? 400;
+    warnings.push(await suggestTextStyle(fs, fw));
+  }
+  if (p.fontColor) {
+    const suggestion = await suggestStyleForColor(p.fontColor, "fontColorStyleName");
+    if (suggestion) warnings.push(suggestion);
+  }
+
+  const result: any = {};
+  if (warnings.length > 0) result.warning = warnings.join(" ");
+  return result;
+}
+
+async function setTextPropertiesBatch(params: any) {
+  const ctx = await prepSetTextProperties(params);
+  return batchHandler(params, (item) => setTextPropertiesSingle(item, ctx));
 }
 
 function getFontStyle(weight: number): string {
