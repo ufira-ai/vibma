@@ -22,9 +22,8 @@ const setValueItem = z.object({
   variableId: z.string().describe("Variable ID (use full ID from create_variable response, e.g. VariableID:1:6)"),
   modeId: z.string().describe("Mode ID"),
   value: flexJson(z.union([
-    z.number(), z.string(), z.boolean(),
-    z.object({ r: z.coerce.number(), g: z.coerce.number(), b: z.coerce.number(), a: z.coerce.number().optional() }),
-  ])).describe("Value: number, string, boolean, or {r,g,b,a} color"),
+    z.number(), z.boolean(), S.colorRgba,
+  ])).describe('Value: number, boolean, or color (hex "#RRGGBB" or {r,g,b,a?} 0-1)'),
 });
 
 const bindingItem = z.object({
