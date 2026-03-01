@@ -58,7 +58,7 @@ const autoLayoutItem = z.object({
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
   server.tool(
     "create_frame",
-    "Create frames in Figma. Supports batch. Prefer fillStyleName or fillVariableId over hardcoded fillColor for design token consistency.",
+    "Create frames in Figma. Batch supported. Use fillStyleName/fillVariableId and strokeStyleName/strokeVariableId instead of hardcoded colors — hardcoded values skip design tokens and will trigger lint warnings.",
     { items: flexJson(z.array(frameItem)).describe("Array of frames to create"), depth: S.depth },
     async (params: any) => {
       try { return mcpJson(await sendCommand("create_frame", params)); }

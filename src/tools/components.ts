@@ -68,7 +68,7 @@ const instanceItem = z.object({
 export function registerMcpTools(server: McpServer, sendCommand: SendCommandFn) {
   server.tool(
     "create_component",
-    "Create components in Figma. Same layout params as create_frame. Name with 'Property=Value' pattern (e.g. 'Size=Small') if you plan to combine_as_variants later. Batch: pass multiple items.",
+    "Create components in Figma. Same layout params as create_frame. Name with 'Property=Value' pattern (e.g. 'Size=Small') if you plan to combine_as_variants later. Use fillStyleName/fillVariableId over hardcoded colors. After adding text children, use add_component_property to expose text as editable properties. Batch: pass multiple items.",
     { items: flexJson(z.array(componentItem)).describe("Array of components to create"), depth: S.depth },
     async (params: any) => {
       try { return mcpJson(await sendCommand("create_component", params)); }
@@ -197,6 +197,23 @@ async function bindStrokeVariable(node: any, variableId: string, fallbackColor?:
   return true;
 }
 
+function countTextNodes(node: BaseNode): number {
+  if (node.type === "TEXT") return 1;
+  if ("children" in node) {
+    let count = 0;
+    for (const child of (node as any).children) count += countTextNodes(child);
+    return count;
+  }
+  return 0;
+}
+
+function warnUnboundText(comp: ComponentNode, hints: string[]) {
+  const textCount = countTextNodes(comp);
+  if (textCount > 0) {
+    hints.push(`Component has ${textCount} text node${textCount > 1 ? "s" : ""} — use add_component_property to expose text as editable properties on instances.`);
+  }
+}
+
 async function createComponentSingle(p: any) {
   if (!p.name) throw new Error("Missing name");
   const {
@@ -273,6 +290,8 @@ async function createComponentSingle(p: any) {
     if (deferV) { try { comp.layoutSizingVertical = "FILL"; } catch {} }
   }
 
+  warnUnboundText(comp, hints);
+
   const result: any = { id: comp.id };
   if (hints.length > 0) result.warning = hints.join(" ");
   return result;
@@ -292,7 +311,13 @@ async function fromNodeSingle(p: any) {
   comp.appendChild(clone);
   (parent as any).insertChild(index, comp);
   node.remove();
-  return { id: comp.id };
+
+  const hints: string[] = [];
+  warnUnboundText(comp, hints);
+
+  const result: any = { id: comp.id };
+  if (hints.length > 0) result.warning = hints.join(" ");
+  return result;
 }
 
 async function combineSingle(p: any) {
