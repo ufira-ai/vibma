@@ -107,31 +107,51 @@ export function styleNotFoundHint(param: string, value: string, available: strin
 }
 
 /**
- * Check if a hardcoded color matches any local paint style.
- * Returns a hint suggesting the exact style name if matched,
- * or a prompt to create a paint style if no match.
+ * Check if a hardcoded color matches any local paint style or color variable.
+ * Returns a hint suggesting the exact style/variable name if matched,
+ * or a prompt to create one if no match.
  */
 export async function suggestStyleForColor(
   color: { r: number, g: number, b: number, a?: number },
   styleParam: string,
 ): Promise<string> {
   const hex = `#${[color.r, color.g, color.b].map(v => Math.round((v ?? 0) * 255).toString(16).padStart(2, "0")).join("")}`;
-  const styles = await figma.getLocalPaintStylesAsync();
   const eps = 0.02;
+  const cr = color.r ?? 0, cg = color.g ?? 0, cb = color.b ?? 0, ca = color.a ?? 1;
+
+  // Check paint styles
+  const styles = await figma.getLocalPaintStylesAsync();
   for (const style of styles) {
     const paints = style.paints;
     if (paints.length === 1 && paints[0].type === "SOLID") {
       const sc = (paints[0] as SolidPaint).color;
       const so = (paints[0] as SolidPaint).opacity ?? 1;
-      if (Math.abs(sc.r - (color.r ?? 0)) < eps &&
-          Math.abs(sc.g - (color.g ?? 0)) < eps &&
-          Math.abs(sc.b - (color.b ?? 0)) < eps &&
-          Math.abs(so - (color.a ?? 1)) < eps) {
+      if (Math.abs(sc.r - cr) < eps && Math.abs(sc.g - cg) < eps &&
+          Math.abs(sc.b - cb) < eps && Math.abs(so - ca) < eps) {
         return `Hardcoded color ${hex} matches style '${style.name}'. Use ${styleParam}: '${style.name}' to link to the design token.`;
       }
     }
   }
-  return `Hardcoded color ${hex} has no matching paint style. Create one with create_paint_style, then use ${styleParam} for design token consistency.`;
+
+  // Check color variables (default mode values)
+  const colorVars = await figma.variables.getLocalVariablesAsync("COLOR");
+  if (colorVars.length > 0) {
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    const defaultModes = new Map(collections.map(c => [c.id, c.defaultModeId]));
+    for (const v of colorVars) {
+      const modeId = defaultModes.get(v.variableCollectionId);
+      if (!modeId) continue;
+      const val = v.valuesByMode[modeId];
+      if (!val || typeof val !== "object" || "type" in val) continue;
+      const vc = val as { r: number; g: number; b: number; a?: number };
+      if (Math.abs(vc.r - cr) < eps && Math.abs(vc.g - cg) < eps &&
+          Math.abs(vc.b - cb) < eps && Math.abs((vc.a ?? 1) - ca) < eps) {
+        return `Hardcoded color ${hex} matches variable '${v.name}' (${v.id}). Use set_variable_binding to bind to the design token.`;
+      }
+    }
+  }
+
+  return `Hardcoded color ${hex} has no matching paint style or color variable. Create one with create_paint_style or create_variable, then use ${styleParam} for design token consistency.`;
 }
 
 /**
