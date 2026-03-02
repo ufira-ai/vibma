@@ -4,10 +4,11 @@
 
 **Vibe Design meets Figma.**
 
+https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
+</div>
+
 Let AI agents design directly in Figma — read layouts, create components,
 modify styles, and build entire design systems through conversation.
-
-https://github.com/user-attachments/assets/bf38e37d-57bb-40b3-a2d1-f89216117c11
 
 ---
 
